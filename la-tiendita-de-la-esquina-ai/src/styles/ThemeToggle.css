@@ -1,0 +1,112 @@
+/* ThemeToggle.css - Estilos para el toggle de tema */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 2rem;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-white);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.theme-toggle-track {
+  position: relative;
+  width: 2.5rem;
+  height: 1.25rem;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1rem;
+  height: 1rem;
+  background: var(--color-white);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Estado oscuro */
+.dark-theme .theme-toggle-thumb {
+  transform: translateX(1.25rem);
+  background: var(--color-primary);
+  color: var(--text-white);
+}
+
+.dark-theme .theme-toggle-track {
+  background: rgba(195, 68, 171, 0.3);
+}
+
+.theme-toggle-label {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .theme-toggle {
+    padding: 0.25rem 0.5rem;
+    gap: 0.25rem;
+  }
+  
+  .theme-toggle-label {
+    display: none;
+  }
+  
+  .theme-toggle-track {
+    width: 2rem;
+    height: 1rem;
+  }
+  
+  .theme-toggle-thumb {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+  
+  .dark-theme .theme-toggle-thumb {
+    transform: translateX(1rem);
+  }
+  
+  .theme-toggle-thumb svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+/* Animaciones específicas para el icono */
+.theme-toggle-thumb svg {
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover .theme-toggle-thumb svg {
+  transform: scale(1.1);
+}
+
+/* Accesibilidad */
+.theme-toggle:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+.theme-toggle:focus:not(:focus-visible) {
+  outline: none;
+}

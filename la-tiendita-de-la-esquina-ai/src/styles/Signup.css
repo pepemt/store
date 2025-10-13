@@ -1,7 +1,7 @@
-/* Signup.css - Estilos para la página de Signup */
+/* Estilos para la página de Signup */
 
 .signup-container {
-  min-height: 80vh;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13,11 +13,11 @@
   background: white;
   border-radius: 1.5rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  padding: 3rem;
+  padding: 3.5rem;
   width: 100%;
   max-width: 32rem;
   position: relative;
-  overflow: hidden;
+  min-height: auto;
 }
 
 .signup-card::before {
@@ -54,10 +54,13 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .form-group {
   position: relative;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem 0 0.5rem 0;
 }
 
 .form-input {
@@ -68,6 +71,8 @@
   font-size: 1rem;
   transition: all 0.3s ease;
   background: #f9fafb;
+  box-sizing: border-box;
+  display: block;
 }
 
 .form-input:focus {
@@ -75,7 +80,6 @@
   border-color: #059669;
   background: white;
   box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
-  transform: translateY(-1px);
 }
 
 .form-input::placeholder {
@@ -84,23 +88,26 @@
 
 .form-label {
   position: absolute;
-  left: 1.25rem;
+  left: 1.5rem;
   top: 50%;
   transform: translateY(-50%);
   color: #6b7280;
   font-size: 1rem;
   transition: all 0.3s ease;
   pointer-events: none;
-  background: white;
-  padding: 0 0.5rem;
+  padding: 0 0.75rem;
+  z-index: 2;
+  border-radius: 4px;
 }
 
 .form-input:focus + .form-label,
 .form-input:not(:placeholder-shown) + .form-label {
-  top: 0;
+  top: -2rem;
+  left: 0.75rem;
   font-size: 0.875rem;
   color: #059669;
   font-weight: 600;
+  padding: 0.25rem 0.75rem;
 }
 
 .signup-button {

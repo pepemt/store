@@ -45,10 +45,20 @@ export const AuthProvider = ({ children }) => {
     return newUser
   }
 
+  // updateProfile: actualiza datos del usuario en el contexto y localStorage
+  const updateProfile = (updates) => {
+    setUser(prev => {
+      if (!prev) return prev
+      const next = { ...prev, ...updates }
+      try { localStorage.setItem('tiendita_user', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
   const logout = () => setUser(null)
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup }}>
+    <AuthContext.Provider value={{ user, login, logout, signup, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

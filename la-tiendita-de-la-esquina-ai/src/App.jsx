@@ -3,8 +3,11 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
 import { AuthProvider } from './context/AuthContext'
 import { CartProvider } from './context/CartContext'
+import { ChatProvider } from './context/ChatContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import Chat from './components/Chat'
 import ProtectedRoute from './components/ProtectedRoute'
 import './styles/App.css'
 
@@ -15,13 +18,19 @@ import Signup from './pages/Signup'
 import ProductList from './pages/ProductList'
 import ProductDetails from './pages/ProductDetails'
 import Cart from './pages/Cart'
+import Settings from './pages/Settings'
+import Profile from './pages/Profile'
+import Checkout from './pages/Checkout'
+import ChatPage from './pages/ChatPage'
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <BrowserRouter>
-          <div className="app">
+    <ThemeProvider>
+      <AuthProvider>
+        <CartProvider>
+          <ChatProvider>
+            <BrowserRouter>
+            <div className="app">
             <Header />
             <main className="main-content">
               <Routes>
@@ -30,6 +39,7 @@ function App() {
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/products" element={<ProductList />} />
                 <Route path="/product/:id" element={<ProductDetails />} />
+                <Route path="/chat" element={<ChatPage />} />
                 <Route
                   path="/cart"
                   element={
@@ -38,13 +48,26 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/checkout"
+                  element={
+                    <ProtectedRoute>
+                      <Checkout />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/settings" element={<Settings />} />
               </Routes>
             </main>
             <Footer />
+            <Chat />
           </div>
         </BrowserRouter>
+        </ChatProvider>
       </CartProvider>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
 

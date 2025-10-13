@@ -1,0 +1,16 @@
+.profile-page { max-width:900px; margin:2rem auto; padding:1rem }
+.profile-header h1{ margin:0; font-size:1.5rem }
+.profile-header p{ margin:0; color:var(--muted-text,#6b7280) }
+.profile-card{ display:flex; gap:1rem; align-items:center; background:var(--card-bg,#fff); padding:1rem; border-radius:10px; border:1px solid var(--muted-border,#e6e9ee) }
+.avatar{ width:72px; height:72px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.6rem; font-weight:700; background:var(--accent,#85E3FF); color:#fff }
+.profile-info h2{ margin:0 }
+.muted{ color:var(--muted-text,#6b7280) }
+.small{ font-size:0.9rem }
+.profile-actions{ display:flex; flex-direction:column; gap:0.5rem; margin-left:auto }
+.btn{ padding:0.5rem 0.8rem; border-radius:8px; cursor:pointer }
+.btn.ghost{ background:transparent; border:1px solid var(--muted-border,#e6e9ee) }
+.btn.danger{ background:#ff6b6b; color:#fff }
+.edit-form label{ display:block; margin-bottom:0.6rem }
+.edit-form input{ padding:8px; border-radius:6px; border:1px solid #ddd }
+
+@media (max-width:720px){ .profile-card{ flex-direction:column; align-items:flex-start } .profile-actions{ margin-left:0; width:100% } }

@@ -1,10 +1,13 @@
 /* App.css - Estilos globales y para el layout principal */
 
+/* Importar variables de colores */
+@import './colors.css';
+
 .app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: var(--gradient-background);
 }
 
 .main-content {

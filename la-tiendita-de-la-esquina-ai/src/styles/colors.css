@@ -1,0 +1,146 @@
+/* Variables de colores para La Tiendita de la Esquina */
+/* Paleta de colores principal */
+
+:root {
+  /* Colores principales */
+  --color-primary: #C344AB;          /* Rosa/Magenta principal */
+  --color-secondary: #85E3FF;        /* Azul cielo claro */
+  --color-accent-pink: #FFD7F7;      /* Rosa claro/pastel */
+  --color-accent-blue: #D9F7FF;      /* Azul muy claro */
+  --color-background: #F9FAFC;       /* Gris muy claro para fondos */
+  --color-white: #FFFFFF;            /* Blanco puro */
+  
+  /* Variaciones de colores principales */
+  --color-primary-light: #D865BF;    /* Rosa más claro */
+  --color-primary-dark: #A8368A;     /* Rosa más oscuro */
+  --color-secondary-light: #A3EBFF;  /* Azul más claro */
+  --color-secondary-dark: #67DBFF;   /* Azul más oscuro */
+  
+  /* Colores para texto */
+  --text-primary: #2D3748;           /* Texto principal oscuro */
+  --text-secondary: #718096;         /* Texto secundario gris */
+  --text-muted: #A0AEC0;             /* Texto tenue */
+  --text-light: #F7FAFC;             /* Texto claro */
+  --text-white: #FFFFFF;             /* Texto blanco */
+  
+  /* Colores de estado */
+  --color-success: #48BB78;          /* Verde para éxito */
+  --color-warning: #ED8936;          /* Naranja para advertencias */
+  --color-error: #F56565;            /* Rojo para errores */
+  --color-info: var(--color-secondary); /* Azul para información */
+  
+  /* Gradientes */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  --gradient-secondary: linear-gradient(135deg, var(--color-accent-pink) 0%, var(--color-accent-blue) 100%);
+  --gradient-background: linear-gradient(135deg, var(--color-background) 0%, var(--color-white) 100%);
+  --gradient-hero: linear-gradient(135deg, var(--color-accent-blue) 0%, var(--color-accent-pink) 100%);
+  /* Darker gradient for hero title text to improve contrast */
+  --gradient-hero-text: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary-dark) 100%);
+  /* Dark background gradient for hero slides (preview variant) */
+  /* Lighter dark-gradient: still rich but brighter so white text reads well */
+  --gradient-hero-dark: linear-gradient(135deg, #ff42cc 0%, #3dc2ff 100%);
+  /* Per-slide hero gradients (variants inspired by the palette and user tweaks) */
+  --gradient-hero-1: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  --gradient-hero-2: linear-gradient(135deg, #FFD7F7 0%, #A3EBFF 100%);
+  --gradient-hero-3: linear-gradient(135deg, #67DBFF 0%, #C344AB 100%);
+  --gradient-hero-4: linear-gradient(135deg, #6b2a6b 0%, #2a7fa6 100%);
+  
+  /* Sombras con colores de la paleta */
+  --shadow-primary: 0 8px 32px rgba(195, 68, 171, 0.3);
+  --shadow-secondary: 0 8px 32px rgba(133, 227, 255, 0.3);
+  --shadow-soft: 0 4px 15px rgba(195, 68, 171, 0.1);
+  --shadow-medium: 0 8px 25px rgba(195, 68, 171, 0.15);
+  --shadow-large: 0 20px 40px rgba(195, 68, 171, 0.2);
+  
+  /* Colores para componentes específicos */
+  --header-bg: var(--color-white);
+  --header-shadow: var(--shadow-soft);
+  --button-primary-bg: var(--gradient-primary);
+  --button-primary-hover: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary-dark) 100%);
+  --button-secondary-bg: var(--color-white);
+  --button-secondary-border: var(--color-primary);
+  --button-secondary-text: var(--color-primary);
+  
+  /* Colores para formularios */
+  --input-bg: var(--color-white);
+  --input-border: #E2E8F0;
+  --input-border-focus: var(--color-primary);
+  --input-shadow-focus: 0 0 0 3px rgba(195, 68, 171, 0.1);
+  
+  /* Colores para cards */
+  --card-bg: var(--color-white);
+  --card-border: var(--color-accent-blue);
+  --card-shadow: var(--shadow-soft);
+  --card-hover-shadow: var(--shadow-medium);
+  
+  /* Colores para el chat */
+  --chat-primary: var(--gradient-primary);
+  --chat-user-bg: var(--gradient-primary);
+  --chat-assistant-bg: var(--color-white);
+  --chat-window-bg: var(--color-white);
+  --chat-input-bg: var(--color-background);
+  --chat-input-border: var(--color-accent-blue);
+  
+  /* Colores para el carrusel */
+  --carousel-dot: rgba(255, 255, 255, 0.5);
+  --carousel-dot-active: var(--color-white);
+  --carousel-arrow-bg: rgba(255, 255, 255, 0.9);
+  --carousel-arrow-hover: var(--color-white);
+}
+
+/* Tema oscuro (controlado por clase) */
+.dark-theme {
+  --color-background: #1A202C;
+  --color-white: #2D3748;
+  --text-primary: #F7FAFC;
+  --text-secondary: #E2E8F0;
+  --text-muted: #A0AEC0;
+  --input-bg: #2D3748;
+  --input-border: #4A5568;
+  --card-bg: #2D3748;
+  --card-border: #4A5568;
+  --header-bg: #2D3748;
+  --gradient-background: linear-gradient(135deg, #1A202C 0%, #2D3748 100%);
+  --shadow-soft: 0 4px 15px rgba(0, 0, 0, 0.3);
+  --shadow-medium: 0 8px 25px rgba(0, 0, 0, 0.4);
+  --shadow-large: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Tema claro (por defecto) */
+.light-theme {
+  --color-background: #F9FAFC;
+  --color-white: #FFFFFF;
+  --text-primary: #2D3748;
+  --text-secondary: #718096;
+  --text-muted: #A0AEC0;
+  --input-bg: #FFFFFF;
+  --input-border: #E2E8F0;
+  --card-bg: #FFFFFF;
+  --card-border: #D9F7FF;
+  --header-bg: #FFFFFF;
+  --gradient-background: linear-gradient(135deg, #F9FAFC 0%, #FFFFFF 100%);
+  --shadow-soft: 0 4px 15px rgba(195, 68, 171, 0.1);
+  --shadow-medium: 0 8px 25px rgba(195, 68, 171, 0.15);
+  --shadow-large: 0 20px 40px rgba(195, 68, 171, 0.2);
+}
+
+/* Clases de utilidad para aplicar colores rápidamente */
+.bg-primary { background: var(--color-primary) !important; }
+.bg-secondary { background: var(--color-secondary) !important; }
+.bg-accent-pink { background: var(--color-accent-pink) !important; }
+.bg-accent-blue { background: var(--color-accent-blue) !important; }
+.bg-background { background: var(--color-background) !important; }
+.bg-white { background: var(--color-white) !important; }
+
+.text-primary { color: var(--text-primary) !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-muted { color: var(--text-muted) !important; }
+.text-white { color: var(--text-white) !important; }
+
+.gradient-primary { background: var(--gradient-primary) !important; }
+.gradient-secondary { background: var(--gradient-secondary) !important; }
+.gradient-hero { background: var(--gradient-hero) !important; }
+
+.shadow-primary { box-shadow: var(--shadow-primary) !important; }
+.shadow-secondary { box-shadow: var(--shadow-secondary) !important; }
+.shadow-soft { box-shadow: var(--shadow-soft) !important; }

@@ -3,10 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import '../styles/Header.css'
+import MobileMenu from './MobileMenu'
+import { useState } from 'react'
 
 // Header simple con logo, búsqueda (navega a /products?q=...), enlaces y contador de carrito.
 export default function Header() {
   const { user, logout } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
   const { count } = useCart()
   const navigate = useNavigate()
 
@@ -21,27 +24,29 @@ export default function Header() {
     <header className="header">
       <div className="header-container">
         <div className="header-left">
+          <button className="hamburger" onClick={() => setMenuOpen(true)} aria-label="Abrir menú">☰</button>
           <Link to="/" className="logo">
             🛒 La Tiendita
           </Link>
-          <form onSubmit={handleSearch} className="search-form">
-            <div className="search-container">
-              <input 
-                name="q" 
-                placeholder="Buscar productos..." 
-                className="search-input" 
-              />
-              <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <button type="submit" className="search-button">
-              Buscar
-            </button>
-          </form>
         </div>
 
-        <nav className="nav">
+        <form onSubmit={handleSearch} className="search-form">
+          <div className="search-container">
+            <input 
+              name="q" 
+              placeholder="Buscar productos..." 
+              className="search-input" 
+            />
+            <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <button type="submit" className="search-button">
+            Buscar
+          </button>
+        </form>
+
+  <nav className="nav">
           <Link to="/products" className="nav-link">Productos</Link>
 
           {user ? (
@@ -73,6 +78,7 @@ export default function Header() {
             )}
           </Link>
         </nav>
+        <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
       </div>
     </header>
   )
