@@ -3,7 +3,10 @@ name = "ml"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pyspark<=4.0.0",
+    "python-dotenv>=1.1.1",
+]
 
 [project.scripts]
 ml = "ml.main:main"
@@ -14,4 +17,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["ml"]
-package-dir = {"ml" = "."}
+package-dir = {"ml" = "src"}
