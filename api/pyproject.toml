@@ -3,7 +3,13 @@ name = "api"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
-dependencies = ["images", "text"]
+dependencies = [
+  "images",
+  "text",
+  "fastapi>=0.116.1",
+  "uvicorn[standard]>=0.35.0",
+  "colorlog>=6.9.0",
+]
 
 [project.scripts]
 api = "api.main:main"
@@ -18,4 +24,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["api"]
-package-dir = {"api" = "."}
+package-dir = {"api" = "src"}
