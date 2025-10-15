@@ -45,12 +45,6 @@ services:
     volumes:
       - ./.data/postgresql:/var/lib/postgresql/data:rw
     env_file: .env.postgresql
-    command:
-      - "postgres"
-      - "-c"
-      - "listen_addresses=*"
-      - "-c"
-      - "max_connections=200"
 
   chroma:
     image: chromadb/chroma:1.1.1
