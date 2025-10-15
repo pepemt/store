@@ -3,7 +3,12 @@ name = "initialization"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
-dependencies = ["database"]
+dependencies = [
+    "colorlog>=6.9.0",
+    "database",
+    "pandas>=2.3.3",
+    "python-dotenv>=1.1.0"
+]
 
 [project.scripts]
 initialization = "initialization.main:main"

@@ -10,7 +10,6 @@ def main():
     spark_app_name = os.getenv("SPARK_APP_NAME")
     spark_master_url = os.getenv("SPARK_MASTER_URL")
     postgres_url = os.getenv("POSTGRES_URL")
-    postgres_db = os.getenv("POSTGRES_DB")
     postgres_user = os.getenv("POSTGRES_USER")
     postgres_password = os.getenv("POSTGRES_PASSWORD")
 
@@ -21,15 +20,13 @@ def main():
         .config("spark.ui.showConsoleProgress", "false")
         .config("spark.sql.adaptive.enabled", "true")
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-        .config("spark.sql.execution.arrow.pyspark.enabled", "true")
-        .config("spark.sql.execution.arrow.pyspark.fallback.enabled", "false")
         .getOrCreate()
     )
 
     df = (
         spark.read.format("jdbc")
         .option("url", postgres_url)
-        .option("dbtable", postgres_db + ".articles")
+        .option("dbtable", "articles")
         .option("user", postgres_user)
         .option("password", postgres_password)
         .option("driver", "org.postgresql.Driver")

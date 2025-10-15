@@ -37,7 +37,7 @@ services:
     command: server /data --console-address ":9001"
 
   postgresql:
-    image: postgres:17-alpine
+    image: postgres:15
     container_name: postgresql
     restart: unless-stopped
     ports:
@@ -45,6 +45,12 @@ services:
     volumes:
       - ./.data/postgresql:/var/lib/postgresql/data:rw
     env_file: .env.postgresql
+    command:
+      - "postgres"
+      - "-c"
+      - "listen_addresses=*"
+      - "-c"
+      - "max_connections=200"
 
   chroma:
     image: chromadb/chroma:1.1.1
