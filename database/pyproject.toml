@@ -1,20 +1,17 @@
 [project]
-name = "initialization"
+name = "database"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
-dependencies = ["database"]
+dependencies = []
 
 [project.scripts]
-initialization = "initialization.main:main"
-
-[tool.uv.sources]
-database = { workspace = true }
+database = "database.main:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["initialization"]
-package-dir = {"initialization" = "."}
+packages = ["database"]
+package-dir = {"database" = "."}

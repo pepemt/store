@@ -1,2 +1,2 @@
 [tool.uv.workspace]
-members = ["api", "images", "text", "ML", "initialization"]
+members = ["api", "images", "text", "ML", "initialization", "database"]
