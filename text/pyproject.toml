@@ -1,0 +1,17 @@
+[project]
+name = "text"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+text = "text.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["text"]
+package-dir = {"text" = "."}

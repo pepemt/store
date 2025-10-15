@@ -1,0 +1,57 @@
+services:
+  spark-master:
+    image: apache/spark:3.5.3
+    container_name: spark-master
+    restart: unless-stopped
+    ports:
+      - "7077:7077"  # Spark Master
+      - "8080:8080"  # Spark Master Web UI
+    volumes:
+      - ./.data/spark-data:/opt/spark/work-dir:rw
+    env_file: .env.spark
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+
+  spark-worker:
+    image: apache/spark:3.5.3
+    container_name: spark-worker
+    restart: unless-stopped
+    ports:
+      - "8081:8081"  # Spark Worker Web UI
+    volumes:
+      - ./.data/spark-data:/opt/spark/work-dir:rw
+    env_file: .env.spark
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"  # MinIO API
+      - "9001:9001"  # MinIO Console
+    volumes:
+      - ./.data/s3:/data:rw
+    env_file: .env.minio
+    command: server /data --console-address ":9001"
+
+  postgresql:
+    image: postgres:17-alpine
+    container_name: postgresql
+    restart: unless-stopped
+    ports:
+      - "5432:5432"  # PostgreSQL
+    volumes:
+      - ./.data/postgresql:/var/lib/postgresql/data:rw
+    env_file: .env.postgresql
+
+  chroma:
+    image: chromadb/chroma:1.1.1
+    container_name: chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # ChromaDB API
+    volumes:
+      - ./.data/chroma:/chroma/chroma:rw
+    env_file: .env.chroma
