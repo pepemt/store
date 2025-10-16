@@ -33,10 +33,10 @@ async def async_main():
         logger.info("Creating tables...")
         await Database.create_tables()
 
-        articles_count = await load_articles_from_csv(articles_csv, batch_size=100_000)
-        customers_count = await load_customers_from_csv(customers_csv, batch_size=100_000)
+        articles_count = await load_articles_from_csv(articles_csv, batch_size=1_000_000)
+        customers_count = await load_customers_from_csv(customers_csv, batch_size=1_000_000)
         transactions_count = await load_transactions_from_csv(
-            transactions_csv, batch_size=100_000
+            transactions_csv, batch_size=1_000_000
         )
 
         logger.info(f"Loaded {articles_count} articles.")
