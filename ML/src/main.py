@@ -1,12 +1,13 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 from pyspark.sql import SparkSession
 
-
 load_dotenv()
 
-
 def main():
+
     spark_app_name = os.getenv("SPARK_APP_NAME")
     spark_master_url = os.getenv("SPARK_MASTER_URL")
     postgres_url = os.getenv("POSTGRES_URL")
