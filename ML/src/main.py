@@ -10,7 +10,7 @@ def main():
 
     spark_app_name = os.getenv("SPARK_APP_NAME")
     spark_master_url = os.getenv("SPARK_MASTER_URL")
-    postgres_url = os.getenv("POSTGRES_URL")
+    postgres_url = os.getenv("POSTGRES_UL")
     postgres_user = os.getenv("POSTGRES_USER")
     postgres_password = os.getenv("POSTGRES_PASSWORD")
 
