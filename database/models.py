@@ -58,6 +58,13 @@ class Customer(Base):
     fashion_news_frequency: Mapped[str] = mapped_column(String(50), nullable=False)
     age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     postal_code: Mapped[str] = mapped_column(String(255), nullable=False)
+    
+    # Campos de autenticación (nuevos)
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_authenticated: Mapped[bool] = mapped_column(default=False)  # True si tiene credenciales
+    created_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     transactions: Mapped[list["Transaction"]] = relationship(
         "Transaction", back_populates="customer"
@@ -66,6 +73,8 @@ class Customer(Base):
     __table_args__ = (
         Index('idx_club_member_status', 'club_member_status'),
         Index('idx_age', 'age'),
+        Index('idx_email', 'email'),
+        Index('idx_is_authenticated', 'is_authenticated'),
     )
 
     def __repr__(self) -> str:
