@@ -6,9 +6,7 @@ from pyspark.sql import SparkSession
 
 load_dotenv()
 
-
 def main():
-
     spark_app_name = os.getenv("SPARK_APP_NAME")
     spark_master_url = os.getenv("SPARK_MASTER_URL")
     postgres_url = os.getenv("POSTGRES_URL")
@@ -25,7 +23,6 @@ def main():
         .getOrCreate()
     )
 
-    # Validate required environment variables to fail early with a helpful message
     required = {
         "POSTGRES_URL": postgres_url,
         "POSTGRES_USER": postgres_user,
@@ -38,7 +35,6 @@ def main():
             f"Missing required environment variables for JDBC connection: {', '.join(missing)}"
         )
 
-    # Coerce all JDBC options to strings to avoid passing None into Java Properties
     jdbc_options = {
         "url": str(postgres_url),
         "dbtable": "articles",
