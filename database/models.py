@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, Integer, Float, Date, ForeignKey, Index
+from sqlalchemy import String, Text, Integer, Float, Date, ForeignKey, Index, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.base import Base
 
@@ -69,6 +69,9 @@ class Customer(Base):
     transactions: Mapped[list["Transaction"]] = relationship(
         "Transaction", back_populates="customer"
     )
+    cart_items: Mapped[list["CartItem"]] = relationship(
+        "CartItem", back_populates="customer", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index('idx_club_member_status', 'club_member_status'),
@@ -107,3 +110,32 @@ class Transaction(Base):
 
     def __repr__(self) -> str:
         return f"<Transaction(id={self.id}, t_dat='{self.t_dat}', price={self.price})>"
+
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    customer_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("customers.customer_id"), nullable=False
+    )
+    article_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("articles.article_id"), nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    added_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # Relaciones
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="cart_items")
+    article: Mapped["Article"] = relationship("Article")
+
+    __table_args__ = (
+        Index('idx_cart_customer_id', 'customer_id'),
+        Index('idx_cart_article_id', 'article_id'),
+        Index('idx_cart_is_active', 'is_active'),
+        Index('idx_cart_customer_article', 'customer_id', 'article_id'),  # Para consultas rápidas
+    )
+
+    def __repr__(self) -> str:
+        return f"<CartItem(id={self.id}, customer_id='{self.customer_id[:10]}...', article_id={self.article_id}, quantity={self.quantity})>"
