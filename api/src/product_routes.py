@@ -17,22 +17,22 @@ router = APIRouter()
 
 class ProductResponse(BaseModel):
     """Modelo de respuesta para productos."""
-    id: int = Field(alias="article_id")
-    name: str = Field(alias="prod_name") 
-    description: Optional[str] = Field(alias="detail_desc")
-    category: str = Field(alias="product_type_name")
-    department: str = Field(alias="department_name")
-    product_group: str = Field(alias="product_group_name")
-    color_group: str = Field(alias="colour_group_name")
+    id: int
+    name: str
+    description: Optional[str]
+    category: str
+    department: str
+    product_group: str
+    color_group: str
     # Campos calculados
-    price: float = 0.0  # Calcularemos desde transactions
-    stock: int = 100    # Mock por ahora
-    rating: float = 4.0  # Mock por ahora
-    images: List[str] = []  # Mock por ahora
+    price: float = 0.0
+    stock: int = 100
+    rating: float = 4.0
+    images: List[str] = []
     
     class Config:
         populate_by_name = True
-        allow_population_by_field_name = True
+        from_attributes = True
 
 
 class ProductListResponse(BaseModel):
@@ -105,13 +105,13 @@ async def get_products(
                 price = await _get_average_price(session, article.article_id)
                 
                 product = ProductResponse(
-                    article_id=article.article_id,
-                    prod_name=article.prod_name,
-                    detail_desc=article.detail_desc,
-                    product_type_name=article.product_type_name,
-                    department_name=article.department_name,
-                    product_group_name=article.product_group_name,
-                    colour_group_name=article.colour_group_name,
+                    id=article.article_id,
+                    name=article.prod_name,
+                    description=article.detail_desc,
+                    category=article.product_type_name,
+                    department=article.department_name,
+                    product_group=article.product_group_name,
+                    color_group=article.colour_group_name,
                     price=price,
                     stock=100,  # Mock
                     rating=4.0 + (article.article_id % 10) / 10,  # Rating variado
@@ -161,13 +161,13 @@ async def search_products(
                 price = await _get_average_price(session, article.article_id)
                 
                 product = ProductResponse(
-                    article_id=article.article_id,
-                    prod_name=article.prod_name,
-                    detail_desc=article.detail_desc,
-                    product_type_name=article.product_type_name,
-                    department_name=article.department_name,
-                    product_group_name=article.product_group_name,
-                    colour_group_name=article.colour_group_name,
+                    id=article.article_id,
+                    name=article.prod_name,
+                    description=article.detail_desc,
+                    category=article.product_type_name,
+                    department=article.department_name,
+                    product_group=article.product_group_name,
+                    color_group=article.colour_group_name,
                     price=price,
                     stock=100,
                     rating=4.0 + (article.article_id % 10) / 10,
@@ -244,13 +244,13 @@ async def get_product_by_id(product_id: int):
             price = await _get_average_price(session, article.article_id)
             
             product = ProductResponse(
-                article_id=article.article_id,
-                prod_name=article.prod_name,
-                detail_desc=article.detail_desc,
-                product_type_name=article.product_type_name,
-                department_name=article.department_name,
-                product_group_name=article.product_group_name,
-                colour_group_name=article.colour_group_name,
+                id=article.article_id,
+                name=article.prod_name,
+                description=article.detail_desc,
+                category=article.product_type_name,
+                department=article.department_name,
+                product_group=article.product_group_name,
+                color_group=article.colour_group_name,
                 price=price,
                 stock=100,
                 rating=4.0 + (article.article_id % 10) / 10,
