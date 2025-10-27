@@ -13,23 +13,19 @@ export default function Signup() {
   const [error, setError] = useState(null)
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    if (USERS.some(u => u.email === email)) {
-      setError('Este correo ya está registrado')
-      return
-    }
-    const newUser = {
-      id: 'u' + (USERS.length + 1),
-      name,
-      email,
-      password,
-      createdAt: new Date().toISOString()
-    }
-    USERS.push(newUser) // mutamos mock
-    signup(newUser)     // simulamos login automático
-    navigate('/')
+  e.preventDefault()
+  if (USERS.some(u => u.email === email)) {
+    setError('Este correo ya está registrado')
+    return
   }
 
+  try {
+    signup({ name, email, password }) // ya agrega el usuario dentro del contexto
+    navigate('/signup-success')
+  } catch (err) {
+    setError(err.message)
+  }
+}
   return (
     <div className="signup-container">
       <div className="signup-card">

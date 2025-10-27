@@ -22,6 +22,7 @@ import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Checkout from './pages/Checkout'
 import ChatPage from './pages/ChatPage'
+import SignupSuccess from './pages/SignupSuccess'
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
                 <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+                <Route path="/signup-success" element={<SignupSuccess />} />
                 <Route path="/products" element={<ProductList />} />
                 <Route path="/product/:id" element={<ProductDetails />} />
                 <Route path="/chat" element={<ChatPage />} />
