@@ -18,7 +18,7 @@ router = APIRouter()
 class ProductResponse(BaseModel):
     """Modelo de respuesta para productos."""
     id: int = Field(alias="article_id")
-    name: str = Field(alias="prod_name") 
+    name: str = Field(alias="prod_name")
     description: Optional[str] = Field(alias="detail_desc")
     category: str = Field(alias="product_type_name")
     department: str = Field(alias="department_name")
@@ -29,10 +29,9 @@ class ProductResponse(BaseModel):
     stock: int = 100    # Mock por ahora
     rating: float = 4.0  # Mock por ahora
     images: List[str] = []  # Mock por ahora
-    
+
     class Config:
         populate_by_name = True
-        allow_population_by_field_name = True
 
 
 class ProductListResponse(BaseModel):

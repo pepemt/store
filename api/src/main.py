@@ -1,11 +1,13 @@
 import os
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from .config import setup_logging
 from .auth_routes import router as auth_router
 from .cart_routes import router as cart_router
 from .product_routes import router as product_router
+from .chat_routes import router as chat_router
 from database.lib import Database
 from images.lib import process_image_info
 from text.lib import format_text_info
@@ -15,6 +17,15 @@ logger = setup_logging()
 
 app = FastAPI(title="La Tiendita de la Esquina API", version="0.1.0")
 
+# Configure CORS for WebSocket support
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure this properly in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Incluir las rutas de autenticación
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["authentication"])
 
@@ -23,6 +34,9 @@ app.include_router(cart_router, prefix="/api/v1/cart", tags=["cart"])
 
 # Incluir las rutas de productos
 app.include_router(product_router, prefix="/api/v1/products", tags=["products"])
+
+# Incluir las rutas de chat (WebSocket y gestión de sesiones)
+app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 
 def get_database_url() -> str:
     """Obtiene la URL de conexión a PostgreSQL desde las variables de entorno."""
