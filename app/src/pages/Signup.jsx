@@ -1,33 +1,26 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { USERS } from '../data/mockData'
 import { useAuth } from '../context/AuthContext'
 import '../styles/Signup.css'
 
 export default function Signup() {
-  const { signup } = useAuth()
+  const { signup, loading } = useAuth()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (USERS.some(u => u.email === email)) {
-      setError('Este correo ya está registrado')
-      return
+    setError(null)
+    
+    try {
+      await signup({ name, email, password })
+      navigate('/')
+    } catch (err) {
+      setError(err.message || 'Error al crear cuenta')
     }
-    const newUser = {
-      id: 'u' + (USERS.length + 1),
-      name,
-      email,
-      password,
-      createdAt: new Date().toISOString()
-    }
-    USERS.push(newUser) // mutamos mock
-    signup(newUser)     // simulamos login automático
-    navigate('/')
   }
 
   return (
@@ -85,8 +78,8 @@ export default function Signup() {
             <label className="form-label">Contraseña</label>
           </div>
           
-          <button type="submit" className="signup-button">
-            Registrarse
+          <button type="submit" className="signup-button" disabled={loading}>
+            {loading ? 'Creando cuenta...' : 'Registrarse'}
           </button>
         </form>
         
