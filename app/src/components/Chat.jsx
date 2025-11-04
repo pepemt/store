@@ -188,6 +188,28 @@ export default function Chat() {
                   >
                     <div className="message-content">
                       <div className="message-text">{message.text}</div>
+                      
+                      {/* Mostrar productos si vienen en el mensaje */}
+                      {message.products && message.products.length > 0 && (
+                        <div className="message-products">
+                          <div className="products-header">Productos encontrados:</div>
+                          <div className="products-list">
+                            {message.products.slice(0, 3).map((product, idx) => (
+                              <div key={product.id || idx} className="product-card">
+                                <div className="product-name">{product.name}</div>
+                                <div className="product-info">
+                                  <span className="product-category">{product.category}</span>
+                                  <span className="product-price">${product.price?.toFixed(2) || '0.00'}</span>
+                                </div>
+                                {product.description && (
+                                  <div className="product-description">{product.description}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="message-time">
                         {formatTime(message.timestamp)}
                       </div>

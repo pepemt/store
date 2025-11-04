@@ -158,6 +158,28 @@ export default function ChatPage() {
                 >
                   <div className="message-page-content">
                     <div className="message-page-text">{message.text}</div>
+                    
+                    {/* Mostrar productos si vienen en el mensaje */}
+                    {message.products && message.products.length > 0 && (
+                      <div className="message-page-products">
+                        <div className="products-page-header">Productos encontrados:</div>
+                        <div className="products-page-list">
+                          {message.products.slice(0, 5).map((product, idx) => (
+                            <div key={product.id || idx} className="product-page-card">
+                              <div className="product-page-name">{product.name}</div>
+                              <div className="product-page-info">
+                                <span className="product-page-category">{product.category}</span>
+                                <span className="product-page-price">${product.price?.toFixed(2) || '0.00'}</span>
+                              </div>
+                              {product.description && (
+                                <div className="product-page-description">{product.description}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="message-page-time">
                       {formatTime(message.timestamp)}
                     </div>
