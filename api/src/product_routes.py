@@ -48,6 +48,19 @@ class CategoryResponse(BaseModel):
     categories: List[str]
 
 
+class ProductIdResponse(BaseModel):
+    """Modelo simple de respuesta para ID y nombre de producto."""
+    id: int
+    name: str
+
+
+class ProductIdListResponse(BaseModel):
+    """Respuesta para lista de IDs y nombres de productos."""
+    products: List[ProductIdResponse]
+    total: int
+    limit: int
+
+
 @router.get("/", response_model=ProductListResponse)
 async def get_products(
     page: int = Query(1, ge=1, description="Número de página"),
@@ -222,6 +235,47 @@ async def get_departments():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener departamentos: {str(e)}"
+        )
+
+
+@router.get("/ids", response_model=ProductIdListResponse)
+async def get_product_ids(
+    limit: int = Query(100, ge=1, le=10000, description="Límite de productos a retornar"),
+    offset: int = Query(0, ge=0, description="Offset para paginación")
+):
+    """Obtiene una lista simple de IDs y nombres de productos con límites."""
+    try:
+        async with Database.get_session() as session:
+            # Query optimizada para solo obtener ID y nombre
+            query = select(
+                Article.article_id,
+                Article.prod_name
+            ).order_by(Article.article_id).offset(offset).limit(limit)
+            
+            result = await session.execute(query)
+            rows = result.fetchall()
+            
+            # Contar total de productos
+            count_query = select(func.count(Article.article_id))
+            total_result = await session.execute(count_query)
+            total = total_result.scalar() or 0
+            
+            # Convertir a response models
+            products = [
+                ProductIdResponse(id=row[0], name=row[1])
+                for row in rows
+            ]
+            
+            return ProductIdListResponse(
+                products=products,
+                total=total,
+                limit=limit
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener IDs de productos: {str(e)}"
         )
 
 

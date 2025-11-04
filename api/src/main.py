@@ -8,9 +8,11 @@ from .auth_routes import router as auth_router
 from .cart_routes import router as cart_router
 from .product_routes import router as product_router
 from .chat_routes import router as chat_router
+from .image_routes import router as image_router
 from database.lib import Database
 from images.lib import process_image_info
 from text.lib import format_text_info
+from .s3_service import S3Service
 
 load_dotenv()
 logger = setup_logging()
@@ -37,6 +39,9 @@ app.include_router(product_router, prefix="/api/v1/products", tags=["products"])
 
 # Incluir las rutas de chat (WebSocket y gestión de sesiones)
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
+
+# Incluir las rutas de imágenes
+app.include_router(image_router, prefix="/api/v1/images", tags=["images"])
 
 def get_database_url() -> str:
     """Obtiene la URL de conexión a PostgreSQL desde las variables de entorno."""
@@ -69,6 +74,14 @@ async def startup_event():
         await Database.create_tables()
         
         logger.info("✅ Base de datos inicializada correctamente")
+        
+        # Inicializar servicio S3
+        try:
+            S3Service.initialize()
+            logger.info("✅ Servicio S3 inicializado correctamente")
+        except Exception as e:
+            logger.warning(f"⚠️  Error al inicializar S3 Service (puede continuar sin S3): {e}")
+            
     except Exception as e:
         logger.error(f"❌ Error al inicializar la base de datos: {e}")
         raise
