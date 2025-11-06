@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { USERS } from '../data/mockData'
 import { useAuth } from '../context/AuthContext'
 import '../styles/Signup.css'
 
@@ -12,20 +11,19 @@ export default function Signup() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
 
-  const handleSubmit = (e) => {
-  e.preventDefault()
-  if (USERS.some(u => u.email === email)) {
-    setError('Este correo ya está registrado')
-    return
-  }
 
-  try {
-    signup({ name, email, password }) // ya agrega el usuario dentro del contexto
-    navigate('/signup-success')
-  } catch (err) {
-    setError(err.message)
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError(null)
+
+    try {
+      await signup({ name, email, password }) // llama al backend vía authService
+      navigate('/signup-success')
+    } catch (err) {
+      setError(err.message || 'Error al crear la cuenta')
+    }
   }
-}
+  
   return (
     <div className="signup-container">
       <div className="signup-card">

@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { USERS } from '../data/mockData'
 import { authService } from '../services/authService'
 
 // Context para autenticación (backend)
