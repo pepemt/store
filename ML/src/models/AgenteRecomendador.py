@@ -92,3 +92,4 @@ if __name__ == "__main__":
         )
     df = obtener_recomendaciones([ejemplo_cliente])
     print(df.head())
+    df.to_csv("recomendaciones_ejemplo.csv", index=False)

@@ -198,6 +198,8 @@ class ALSWrapper(mlflow.pyfunc.PythonModel):
         with open(context.artifacts["item_map"], "r") as f:
             self.item_map = json.load(f)
         self.rev_item_map = {int(v): k for k, v in self.item_map.items()}
+        with open(context.artifacts["interaction_csr"], "rb") as f:
+            self.interaction_matrix = pickle.load(f)
 
     def predict(self, context, model_input: pd.DataFrame) -> pd.DataFrame:  # type: ignore[override]
         results = []
@@ -207,8 +209,19 @@ class ALSWrapper(mlflow.pyfunc.PythonModel):
             if user_id not in self.user_map:
                 continue
             user_idx = int(self.user_map[user_id])
-            recs = self.model.recommend(user_idx, user_items=None, N=top_n)
-            for article_idx, score in recs:
+            recs = self.model.recommend(
+                user_idx,
+                user_items=self.interaction_matrix[user_idx],
+                N=top_n,
+                filter_already_liked_items=True,
+            )
+            if isinstance(recs, tuple):
+                item_indices, scores = recs
+            else:
+                item_indices = [item for item, _ in recs]
+                scores = [score for _, score in recs]
+
+            for article_idx, score in zip(item_indices, scores):
                 results.append(
                     {
                         "user_id": user_id,
@@ -245,6 +258,7 @@ def log_model_to_mlflow(artifacts: RecommenderArtifacts, run_name: str = "als re
             model_path = Path(tmp) / "model.pkl"
             user_map_path = Path(tmp) / "user_map.json"
             item_map_path = Path(tmp) / "item_map.json"
+            interaction_path = Path(tmp) / "interaction.pkl"
 
             with open(model_path, "wb") as f:
                 pickle.dump(artifacts.model, f)
@@ -252,6 +266,8 @@ def log_model_to_mlflow(artifacts: RecommenderArtifacts, run_name: str = "als re
                 json.dump(artifacts.customer_map, f)
             with open(item_map_path, "w") as f:
                 json.dump(artifacts.article_map, f)
+            with open(interaction_path, "wb") as f:
+                pickle.dump(artifacts.interaction_matrix, f)
 
             mlflow.pyfunc.log_model(
                 artifact_path="model",
@@ -260,6 +276,7 @@ def log_model_to_mlflow(artifacts: RecommenderArtifacts, run_name: str = "als re
                     "als_model": str(model_path),
                     "user_map": str(user_map_path),
                     "item_map": str(item_map_path),
+                    "interaction_csr": str(interaction_path),
                 },
                 pip_requirements=["mlflow>=3.0.0", "implicit>=0.7", "pandas", "numpy", "scipy"],
             )
