@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PRODUCTS, CATEGORIES } from '../data/mockData'
 import '../styles/ProductList.css'
 
 export default function ProductList() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [q, setQ] = useState('')
   const [category, setCategory] = useState('Todos')
 
