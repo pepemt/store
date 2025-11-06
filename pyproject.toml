@@ -4,6 +4,7 @@ members = ["api", "images", "text", "ML", "initialization", "database"]
 [dependency-groups]
 dev = [
     "findspark>=2.0.1",
+    "implicit>=0.7.2",
     "ipykernel>=7.0.1",
     "mlflow>=3.5.0",
     "pandas>=2.3.3",
