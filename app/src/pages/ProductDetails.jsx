@@ -7,13 +7,14 @@ import '../styles/ProductDetails.css'
 
 export default function ProductDetails() {
   const { id } = useParams()
-  const { add } = useCart()
+  const { add, mutating } = useCart()
 
   const [product, setProduct] = useState(null)
   const [qty, setQty] = useState(1)
   const [added, setAdded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
   useEffect(() => {
     async function fetchProduct() {
@@ -31,8 +32,9 @@ export default function ProductDetails() {
     fetchProduct()
   }, [id])
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!product) return
+    setActionError(null)
     const safeQty = Math.max(1, Math.min(qty, product.stock || 1))
     const normalizedProduct = {
       ...product,
@@ -41,8 +43,12 @@ export default function ProductDetails() {
         ? product.images
         : [getProductImageUrl(product.id)],
     }
-    add(normalizedProduct, safeQty)
-    setAdded(true)
+    try {
+      await add(normalizedProduct, safeQty)
+      setAdded(true)
+    } catch (err) {
+      setActionError(err.message || 'No se pudo agregar al carrito.')
+    }
   }
 
   if (loading) {
@@ -137,8 +143,12 @@ export default function ProductDetails() {
               />
             </div>
             
-            <button onClick={handleAdd} className="add-to-cart-button">
-              🛒 Agregar al carrito
+            <button
+              onClick={handleAdd}
+              className="add-to-cart-button"
+              disabled={mutating}
+            >
+              {mutating ? 'Agregando...' : '🛒 Agregar al carrito'}
             </button>
             
             <Link to="/products" className="continue-shopping-button">
@@ -149,6 +159,9 @@ export default function ProductDetails() {
               <div className="success-message">
                 ¡Agregado al carrito! <Link to="/cart">Ir al carrito</Link>
               </div>
+            )}
+            {actionError && (
+              <div className="error-message">{actionError}</div>
             )}
           </div>
 

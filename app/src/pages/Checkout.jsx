@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import '../styles/Checkout.css'
 
 export default function Checkout() {
-  const { items, total, clear } = useCart()
+  const { items, total, clear, loading, error } = useCart()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(false)
@@ -86,7 +86,7 @@ export default function Checkout() {
       await new Promise(resolve => setTimeout(resolve, 2000))
       
       // Vaciar carrito y mostrar éxito
-      clear()
+      await clear()
       setOrderComplete(true)
       
       // Redirigir después de 3 segundos
@@ -100,6 +100,25 @@ export default function Checkout() {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="checkout-container">
+        <div className="loading-message">Preparando tu carrito...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="checkout-container">
+        <div className="error-message">{error}</div>
+        <Link to="/cart" className="empty-checkout-link">
+          Volver al carrito
+        </Link>
+      </div>
+    )
   }
 
   // Si el carrito está vacío
@@ -342,15 +361,17 @@ export default function Checkout() {
             {items.map(item => (
               <div key={item.id} className="summary-item">
                 <img 
-                  src={item.images?.[0]} 
-                  alt={item.title} 
+                  src={item.images?.[0] || ''} 
+                  alt={item.name} 
                   className="summary-item-image" 
                 />
                 <div className="summary-item-info">
-                  <h4 className="summary-item-title">{item.title}</h4>
+                  <h4 className="summary-item-title">{item.name}</h4>
                   <div className="summary-item-details">
                     <span className="summary-item-qty">Cantidad: {item.qty}</span>
-                    <span className="summary-item-price">${(item.price * item.qty).toFixed(2)}</span>
+                    <span className="summary-item-price">
+                      ${((item.price || 0) * (item.qty || 0)).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
