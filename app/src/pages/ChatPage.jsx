@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useChat } from '../context/ChatContext'
 import { useNavigate } from 'react-router-dom'
+import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import '../styles/ChatPage.css'
 
 export default function ChatPage() {
@@ -164,18 +165,42 @@ export default function ChatPage() {
                       <div className="message-page-products">
                         <div className="products-page-header">Productos encontrados:</div>
                         <div className="products-page-list">
-                          {message.products.slice(0, 5).map((product, idx) => (
-                            <div key={product.id || idx} className="product-page-card">
-                              <div className="product-page-name">{product.name}</div>
-                              <div className="product-page-info">
-                                <span className="product-page-category">{product.category}</span>
-                                <span className="product-page-price">${product.price?.toFixed(2) || '0.00'}</span>
+                          {message.products.slice(0, 5).map((product, idx) => {
+                            const imageUrl = getProductImageUrl(product.id);
+                            const fallbackUrl = getFallbackImageUrl();
+                            return (
+                              <div key={product.id || idx} className="product-page-card">
+                                {imageUrl && (
+                                  <div className="product-page-image-container">
+                                    <img 
+                                      src={imageUrl} 
+                                      alt={product.name}
+                                      className="product-page-image"
+                                      onError={(e) => {
+                                        // Si falla la imagen con el ID, intentar con "komo"
+                                        if (e.target.src !== fallbackUrl) {
+                                          e.target.src = fallbackUrl;
+                                        } else {
+                                          // Si también falla "komo", ocultar la imagen
+                                          e.target.style.display = 'none';
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <div className="product-page-content">
+                                  <h4 className="product-page-name">{product.name}</h4>
+                                  <div className="product-page-info">
+                                    <span className="product-page-category">{product.category}</span>
+                                    <span className="product-page-price">${product.price?.toFixed(2) || '0.00'}</span>
+                                  </div>
+                                  {product.description && (
+                                    <p className="product-page-description">{product.description}</p>
+                                  )}
+                                </div>
                               </div>
-                              {product.description && (
-                                <div className="product-page-description">{product.description}</div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
