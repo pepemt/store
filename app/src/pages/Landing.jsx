@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { PRODUCTS } from '../data/mockData'
+import { productService } from '../services/productService'
+import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import '../styles/Landing.css'
 
 export default function Landing() {
-  // mostramos algunos productos destacados (primeros 4)
-  const featured = PRODUCTS.slice(0, 4)
+  const [featured, setFeatured] = useState([])
+  const [featuredLoading, setFeaturedLoading] = useState(true)
+  const [featuredError, setFeaturedError] = useState(null)
   
   // Estados para el carrusel
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -84,6 +86,24 @@ export default function Landing() {
     setDirection('prev')
     setCurrentSlide((s) => (s - 1 + slides.length) % slides.length)
   }
+
+  useEffect(() => {
+    async function fetchFeatured() {
+      try {
+        setFeaturedLoading(true)
+        setFeaturedError(null)
+        const data = await productService.getProducts({ page: 1, per_page: 4 })
+        const items = data.products || []
+        setFeatured(items.slice(0, 4))
+      } catch (err) {
+        console.error('Error al cargar destacados:', err)
+        setFeaturedError('No se pudieron cargar los productos destacados.')
+      } finally {
+        setFeaturedLoading(false)
+      }
+    }
+    fetchFeatured()
+  }, [])
 
   return (
     <div className="landing-container">
@@ -181,36 +201,54 @@ export default function Landing() {
           </h2>
           <p className="products-subtitle">Los favoritos de nuestros clientes</p>
         </div>
-        <div className="products-grid">
-          {featured.map(p => (
-            <Link 
-              key={p.id} 
-              to={`/product/${p.id}`} 
-              className="product-card"
-            >
-              <div className="product-image-container">
-                <img 
-                  src={p.images[0]} 
-                  alt={p.title} 
-                  className="product-image"
-                />
-                <div className="product-rating">
-                  ⭐ {p.rating}
-                </div>
-              </div>
-              <div className="product-content">
-                <h3 className="product-title">
-                  {p.title}
-                </h3>
-                <p className="product-description">{p.description}</p>
-                <div className="product-footer">
-                  <span className="product-price">${p.price}</span>
-                  <span className="product-stock">Stock: {p.stock}</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        {featuredLoading && (
+          <div className="featured-message">Cargando productos destacados...</div>
+        )}
+        {featuredError && (
+          <div className="error-message">{featuredError}</div>
+        )}
+        {!featuredLoading && !featuredError && (
+          <div className="products-grid">
+            {featured.map(p => {
+              const name = p.name || p.title
+              const image = p.images?.[0] || getProductImageUrl(p.id) || getFallbackImageUrl()
+              return (
+                <Link 
+                  key={p.id} 
+                  to={`/product/${p.id}`} 
+                  className="product-card"
+                >
+                  <div className="product-image-container">
+                    <img 
+                      src={image} 
+                      alt={name} 
+                      className="product-image"
+                    />
+                    {p.rating && (
+                      <div className="product-rating">
+                        ⭐ {p.rating}
+                      </div>
+                    )}
+                  </div>
+                  <div className="product-content">
+                    <h3 className="product-title">
+                      {name}
+                    </h3>
+                    <p className="product-description">{p.description}</p>
+                    <div className="product-footer">
+                      <span className="product-price">
+                        ${p.price ? p.price.toFixed(2) : '-'}
+                      </span>
+                      {typeof p.stock !== 'undefined' && (
+                        <span className="product-stock">Stock: {p.stock}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
         <div className="products-cta">
           <Link to="/products" className="products-button">
             Ver todos los productos
