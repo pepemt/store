@@ -18,7 +18,6 @@ if ENV_PATH.exists():
 else:
     load_dotenv()
 
-
 def _configure_minio_env() -> None:
     minio_user = os.getenv("MINIO_ROOT_USER")
     minio_password = os.getenv("MINIO_ROOT_PASSWORD")
@@ -34,9 +33,7 @@ def _configure_minio_env() -> None:
     if minio_endpoint and not os.getenv("MLFLOW_S3_ENDPOINT_URL"):
         os.environ["MLFLOW_S3_ENDPOINT_URL"] = minio_endpoint
 
-
 _configure_minio_env()
-
 
 def _resolve_tracking_uri() -> None:
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
@@ -46,7 +43,6 @@ def _resolve_tracking_uri() -> None:
     registry_uri = os.getenv("MLFLOW_REGISTRY_URI")
     if registry_uri:
         mlflow.set_registry_uri(registry_uri)
-
 
 @lru_cache(maxsize=1)
 def _load_model(model_uri: Optional[str] = None):
@@ -58,7 +54,6 @@ def _load_model(model_uri: Optional[str] = None):
 
     _resolve_tracking_uri()
     return mlflow.pyfunc.load_model(uri)
-
 
 def obtener_recomendaciones(
     customer_ids: Iterable[str],
@@ -82,7 +77,6 @@ def obtener_recomendaciones(
     payload = pd.DataFrame({"user_id": customer_ids, "N": n})
     predictions = model.predict(payload)
     return predictions
-
 
 if __name__ == "__main__":
     ejemplo_cliente = os.getenv("EXAMPLE_CUSTOMER_ID")
