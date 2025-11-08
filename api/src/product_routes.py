@@ -1,41 +1,49 @@
 """
-Rutas de la API para el manejo de productos.
+Rutas de la API para el manejo de productos (normalizadas para el front).
 """
 
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
-
+from sqlalchemy import select, func, or_
 from database.lib import Database
 from database.models import Article, Transaction
 
+# Opcional: URLs presignadas de S3 si está configurado
+from .s3_service import S3Service  # Si no hay S3_URL, hace fallback automático
 
 router = APIRouter()
 
 
-class ProductResponse(BaseModel):
-    """Modelo de respuesta para productos."""
-    id: int = Field(alias="article_id")
-    name: str = Field(alias="prod_name")
-    description: Optional[str] = Field(alias="detail_desc")
-    category: str = Field(alias="product_type_name")
-    department: str = Field(alias="department_name")
-    product_group: str = Field(alias="product_group_name")
-    color_group: str = Field(alias="colour_group_name")
-    # Campos calculados
-    price: float = 0.0  # Calcularemos desde transactions
-    stock: int = 100    # Mock por ahora
-    rating: float = 4.0  # Mock por ahora
-    images: List[str] = []  # Mock por ahora
+# --------- MODELOS DE RESPUESTA (shape que espera el front) ---------
 
-    class Config:
-        populate_by_name = True
+class ProductResponse(BaseModel):
+    """
+    Modelo de producto normalizado para el front.
+    - id <= article_id
+    - name <= prod_name
+    - description <= detail_desc
+    - category <= product_group_name (categoría comercial)
+    - department <= department_name
+    - price calculado de transacciones (fallback estable)
+    - images: intenta S3 (products/{article_id}.jpg), fallback a picsum
+    """
+    id: int
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    department: Optional[str] = None
+    price: float = 0.0
+    stock: int = 100
+    rating: float = 4.0
+    images: List[str] = []
+    # Extras útiles
+    color_group: Optional[str] = None
+    product_type: Optional[str] = None
+    product_group: Optional[str] = None
 
 
 class ProductListResponse(BaseModel):
-    """Respuesta para lista de productos."""
     products: List[ProductResponse]
     total: int
     page: int
@@ -44,294 +52,302 @@ class ProductListResponse(BaseModel):
 
 
 class CategoryResponse(BaseModel):
-    """Respuesta para categorías."""
     categories: List[str]
 
 
 class ProductIdResponse(BaseModel):
-    """Modelo simple de respuesta para ID y nombre de producto."""
     id: int
     name: str
 
 
 class ProductIdListResponse(BaseModel):
-    """Respuesta para lista de IDs y nombres de productos."""
     products: List[ProductIdResponse]
     total: int
     limit: int
 
+
+# --------- HELPERS ---------
+
+def _fallback_image(article_id: int) -> str:
+    # Fallback libre si no hay S3 o no existe la imagen
+    return f"https://picsum.photos/seed/{article_id}/800/600"
+
+
+def _candidate_image_keys(article_id: int) -> List[str]:
+    # Puedes ajustar patrones/formatos aquí
+    return [
+        f"products/{article_id}.jpg",
+        f"products/{article_id}.png",
+        f"products/{article_id}.webp",
+    ]
+
+
+def _build_images(article_id: int) -> List[str]:
+    """
+    Intenta obtener una URL presignada de S3; si falla, usa fallback.
+    """
+    try:
+        # Si S3 no está inicializado, S3Service.get_image_url devolverá None
+        for key in _candidate_image_keys(article_id):
+            url = S3Service.get_image_url(key, expires_in=3600)
+            if url:
+                return [url]
+    except Exception:
+        pass
+    return [_fallback_image(article_id)]
+
+
+async def _get_average_price(session, article_id: int) -> float:
+    """
+    Precio promedio por article_id; si no hay transacciones, fallback estable.
+    """
+    try:
+        q = select(func.avg(Transaction.price)).where(Transaction.article_id == article_id)
+        result = await session.execute(q)
+        avg_price = result.scalar()
+        if avg_price is None:
+            # Fallback “determinístico” para que no cambie en cada request
+            base = 29.99
+            return float(base + (article_id % 100))
+        return float(avg_price)
+    except Exception:
+        base = 29.99
+        return float(base + (article_id % 100))
+
+
+def _to_product_response(row: Article, price: float) -> ProductResponse:
+    """
+    Mapea Article → ProductResponse con el shape esperado por el front.
+    """
+    return ProductResponse(
+        id=row.article_id,
+        name=row.prod_name,
+        description=row.detail_desc,
+        category=row.product_group_name,     # categoría comercial
+        department=row.department_name,
+        price=price,
+        stock=100,                           # mock hasta tener inventario real
+        rating=4.0 + (row.article_id % 10) / 10,
+        images=_build_images(row.article_id),
+        color_group=row.colour_group_name,
+        product_type=row.product_type_name,
+        product_group=row.product_group_name,
+    )
+
+
+# --------- ENDPOINTS ---------
 
 @router.get("/", response_model=ProductListResponse)
 async def get_products(
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(20, ge=1, le=100, description="Productos por página"),
     search: Optional[str] = Query(None, description="Término de búsqueda"),
-    category: Optional[str] = Query(None, description="Filtrar por categoría"),
-    department: Optional[str] = Query(None, description="Filtrar por departamento")
+    category: Optional[str] = Query(None, description="Filtrar por categoría (product_group_name)"),
+    department: Optional[str] = Query(None, description="Filtrar por departamento"),
 ):
-    """Obtiene lista de productos con paginación y filtros."""
+    """
+    Lista de productos con paginación y filtros.
+    Filtros:
+      - search: ILIKE en nombre, descripción, tipo y grupo
+      - category: product_group_name
+      - department: department_name
+    """
     try:
         async with Database.get_session() as session:
-            # Query base
-            query = select(Article)
-            count_query = select(func.count(Article.article_id))
-            
-            # Aplicar filtros
+            # Base
+            base_q = select(Article)
+            count_q = select(func.count(Article.article_id))
+
+            # Filtros
+            conditions = []
+
             if search:
-                search_term = f"%{search.lower()}%"
-                query = query.where(
-                    (func.lower(Article.prod_name).contains(search_term)) |
-                    (func.lower(Article.detail_desc).contains(search_term)) |
-                    (func.lower(Article.product_type_name).contains(search_term))
-                )
-                count_query = count_query.where(
-                    (func.lower(Article.prod_name).contains(search_term)) |
-                    (func.lower(Article.detail_desc).contains(search_term)) |
-                    (func.lower(Article.product_type_name).contains(search_term))
-                )
-            
+                # Usamos ILIKE nativo de Postgres
+                like = f"%{search}%"
+                conditions.append(or_(
+                    Article.prod_name.ilike(like),
+                    Article.detail_desc.ilike(like),
+                    Article.product_type_name.ilike(like),
+                    Article.product_group_name.ilike(like),
+                ))
+
             if category:
-                query = query.where(Article.product_type_name == category)
-                count_query = count_query.where(Article.product_type_name == category)
-                
+                conditions.append(Article.product_group_name == category)
+
             if department:
-                query = query.where(Article.department_name == department)
-                count_query = count_query.where(Article.department_name == department)
-            
-            # Obtener total de elementos
-            total_result = await session.execute(count_query)
-            total = total_result.scalar() or 0
-            
-            # Aplicar paginación
+                conditions.append(Article.department_name == department)
+
+            if conditions:
+                base_q = base_q.where(*conditions)
+                count_q = count_q.where(*conditions)
+
+            # Total
+            total = (await session.execute(count_q)).scalar() or 0
+
+            # Paginación
             offset = (page - 1) * per_page
-            query = query.offset(offset).limit(per_page)
-            
-            # Ejecutar query
-            result = await session.execute(query)
-            articles = result.scalars().all()
-            
-            # Convertir a response models
-            products = []
-            for article in articles:
-                # Calcular precio promedio desde transacciones (simplificado)
-                price = await _get_average_price(session, article.article_id)
-                
-                product = ProductResponse(
-                    article_id=article.article_id,
-                    prod_name=article.prod_name,
-                    detail_desc=article.detail_desc,
-                    product_type_name=article.product_type_name,
-                    department_name=article.department_name,
-                    product_group_name=article.product_group_name,
-                    colour_group_name=article.colour_group_name,
-                    price=price,
-                    stock=100,  # Mock
-                    rating=4.0 + (article.article_id % 10) / 10,  # Rating variado
-                    images=[f"https://picsum.photos/seed/{article.article_id}/800/600"]
-                )
-                products.append(product)
-            
+            q = base_q.order_by(Article.article_id).offset(offset).limit(per_page)
+
+            rows = (await session.execute(q)).scalars().all()
+
+            # Mapear a respuesta
+            products: List[ProductResponse] = []
+            for row in rows:
+                price = await _get_average_price(session, row.article_id)
+                products.append(_to_product_response(row, price))
+
             total_pages = (total + per_page - 1) // per_page
-            
+
             return ProductListResponse(
                 products=products,
                 total=total,
                 page=page,
                 per_page=per_page,
-                total_pages=total_pages
+                total_pages=total_pages,
             )
-            
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener productos: {str(e)}"
+            detail=f"Error al obtener productos: {str(e)}",
         )
 
 
 @router.get("/search", response_model=ProductListResponse)
 async def search_products(
     q: str = Query(..., min_length=1, description="Término de búsqueda"),
-    limit: int = Query(20, ge=1, le=100, description="Límite de resultados")
+    limit: int = Query(20, ge=1, le=100, description="Límite de resultados"),
 ):
-    """Búsqueda rápida de productos."""
+    """
+    Búsqueda rápida (devuelve estructura de lista para que el front no haga casos especiales).
+    """
     try:
         async with Database.get_session() as session:
-            search_term = f"%{q.lower()}%"
-            
-            query = select(Article).where(
-                (func.lower(Article.prod_name).contains(search_term)) |
-                (func.lower(Article.detail_desc).contains(search_term)) |
-                (func.lower(Article.product_type_name).contains(search_term)) |
-                (func.lower(Article.product_group_name).contains(search_term))
-            ).limit(limit)
-            
-            result = await session.execute(query)
-            articles = result.scalars().all()
-            
-            products = []
-            for article in articles:
-                price = await _get_average_price(session, article.article_id)
-                
-                product = ProductResponse(
-                    article_id=article.article_id,
-                    prod_name=article.prod_name,
-                    detail_desc=article.detail_desc,
-                    product_type_name=article.product_type_name,
-                    department_name=article.department_name,
-                    product_group_name=article.product_group_name,
-                    colour_group_name=article.colour_group_name,
-                    price=price,
-                    stock=100,
-                    rating=4.0 + (article.article_id % 10) / 10,
-                    images=[f"https://picsum.photos/seed/{article.article_id}/800/600"]
-                )
-                products.append(product)
-            
+            like = f"%{q}%"
+            qsel = (
+                select(Article)
+                .where(or_(
+                    Article.prod_name.ilike(like),
+                    Article.detail_desc.ilike(like),
+                    Article.product_type_name.ilike(like),
+                    Article.product_group_name.ilike(like),
+                ))
+                .order_by(Article.article_id)
+                .limit(limit)
+            )
+
+            rows = (await session.execute(qsel)).scalars().all()
+
+            products: List[ProductResponse] = []
+            for row in rows:
+                price = await _get_average_price(session, row.article_id)
+                products.append(_to_product_response(row, price))
+
             return ProductListResponse(
                 products=products,
                 total=len(products),
                 page=1,
                 per_page=limit,
-                total_pages=1
+                total_pages=1,
             )
-            
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error en búsqueda: {str(e)}"
+            detail=f"Error en búsqueda: {str(e)}",
         )
 
 
 @router.get("/categories", response_model=CategoryResponse)
 async def get_categories():
-    """Obtiene todas las categorías disponibles."""
+    """
+    Devuelve categorías comerciales (product_group_name).
+    """
     try:
         async with Database.get_session() as session:
-            query = select(Article.product_type_name).distinct().order_by(Article.product_type_name)
-            result = await session.execute(query)
-            categories = [row[0] for row in result.fetchall()]
-            
+            q = select(Article.product_group_name).distinct().order_by(Article.product_group_name)
+            result = await session.execute(q)
+            categories = [row[0] for row in result.fetchall() if row[0]]
             return CategoryResponse(categories=categories)
-            
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener categorías: {str(e)}"
+            detail=f"Error al obtener categorías: {str(e)}",
         )
 
 
 @router.get("/departments", response_model=CategoryResponse)
 async def get_departments():
-    """Obtiene todos los departamentos disponibles."""
+    """
+    Devuelve departamentos (department_name).
+    """
     try:
         async with Database.get_session() as session:
-            query = select(Article.department_name).distinct().order_by(Article.department_name)
-            result = await session.execute(query)
-            departments = [row[0] for row in result.fetchall()]
-            
+            q = select(Article.department_name).distinct().order_by(Article.department_name)
+            result = await session.execute(q)
+            departments = [row[0] for row in result.fetchall() if row[0]]
             return CategoryResponse(categories=departments)
-            
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener departamentos: {str(e)}"
+            detail=f"Error al obtener departamentos: {str(e)}",
         )
 
 
 @router.get("/ids", response_model=ProductIdListResponse)
 async def get_product_ids(
-    limit: int = Query(100, ge=1, le=10000, description="Límite de productos a retornar"),
-    offset: int = Query(0, ge=0, description="Offset para paginación")
+    limit: int = Query(100, ge=1, le=10000, description="Límite de productos"),
+    offset: int = Query(0, ge=0, description="Offset"),
 ):
-    """Obtiene una lista simple de IDs y nombres de productos con límites."""
+    """
+    Lista ligera de {id, name} para utilidades de front/autocomplete.
+    """
     try:
         async with Database.get_session() as session:
-            # Query optimizada para solo obtener ID y nombre
-            query = select(
-                Article.article_id,
-                Article.prod_name
-            ).order_by(Article.article_id).offset(offset).limit(limit)
-            
-            result = await session.execute(query)
-            rows = result.fetchall()
-            
-            # Contar total de productos
-            count_query = select(func.count(Article.article_id))
-            total_result = await session.execute(count_query)
-            total = total_result.scalar() or 0
-            
-            # Convertir a response models
-            products = [
-                ProductIdResponse(id=row[0], name=row[1])
-                for row in rows
-            ]
-            
-            return ProductIdListResponse(
-                products=products,
-                total=total,
-                limit=limit
+            q = (
+                select(Article.article_id, Article.prod_name)
+                .order_by(Article.article_id)
+                .offset(offset)
+                .limit(limit)
             )
-            
+            rows = (await session.execute(q)).fetchall()
+
+            count_q = select(func.count(Article.article_id))
+            total = (await session.execute(count_q)).scalar() or 0
+
+            products = [ProductIdResponse(id=r[0], name=r[1]) for r in rows]
+            return ProductIdListResponse(products=products, total=total, limit=limit)
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener IDs de productos: {str(e)}"
+            detail=f"Error al obtener IDs de productos: {str(e)}",
         )
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product_by_id(product_id: int):
-    """Obtiene un producto específico por ID."""
+    """
+    Detalle por ID (usa article_id como clave pública).
+    """
     try:
         async with Database.get_session() as session:
-            query = select(Article).where(Article.article_id == product_id)
-            result = await session.execute(query)
-            article = result.scalar_one_or_none()
-            
-            if not article:
+            q = select(Article).where(Article.article_id == product_id)
+            row = (await session.execute(q)).scalar_one_or_none()
+
+            if not row:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Producto no encontrado"
+                    detail="Producto no encontrado",
                 )
-            
-            price = await _get_average_price(session, article.article_id)
-            
-            product = ProductResponse(
-                article_id=article.article_id,
-                prod_name=article.prod_name,
-                detail_desc=article.detail_desc,
-                product_type_name=article.product_type_name,
-                department_name=article.department_name,
-                product_group_name=article.product_group_name,
-                colour_group_name=article.colour_group_name,
-                price=price,
-                stock=100,
-                rating=4.0 + (article.article_id % 10) / 10,
-                images=[f"https://picsum.photos/seed/{article.article_id}/800/600"]
-            )
-            
-            return product
-            
+
+            price = await _get_average_price(session, row.article_id)
+            return _to_product_response(row, price)
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener producto: {str(e)}"
+            detail=f"Error al obtener producto: {str(e)}",
         )
-
-
-async def _get_average_price(session, article_id: int) -> float:
-    """Calcula el precio promedio de un artículo desde las transacciones."""
-    try:
-        query = select(func.avg(Transaction.price)).where(Transaction.article_id == article_id)
-        result = await session.execute(query)
-        avg_price = result.scalar()
-        
-        # Si no hay transacciones, usar un precio base
-        if avg_price is None:
-            return 29.99 + (article_id % 100)  # Precio mock variado
-        
-        return float(avg_price)
-    except:
-        return 29.99 + (article_id % 100)  # Fallback

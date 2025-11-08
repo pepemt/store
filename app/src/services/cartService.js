@@ -1,191 +1,134 @@
 import { config } from '../config/api';
 
 /**
- * Cart Service
- * Handles cart operations (add, remove, update, get)
+ * Cart Service (frontend) — alineado con las rutas del backend:
+ *  - POST   /api/v1/cart/add?customer_id=&article_id=&quantity=
+ *  - GET    /api/v1/cart/{customer_id}
+ *  - DELETE /api/v1/cart/remove?customer_id=&article_id=&quantity=
+ *  - GET    /api/v1/cart/count/{customer_id}
  */
+
+async function parseOrThrow(response) {
+  // Intenta JSON; si falla, genera un error legible
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    // sin cuerpo JSON
+  }
+  if (!response.ok) {
+    const msg = (data && (data.detail || data.message)) || `HTTP ${response.status} ${response.statusText}`;
+    throw new Error(msg);
+  }
+  return data;
+}
 
 export const cartService = {
   /**
    * Add item to cart
-   * @param {string} customerId - Customer ID
-   * @param {number} articleId - Article/Product ID
-   * @param {number} quantity - Quantity to add (default: 1)
-   * @returns {Promise<Object>} Cart item data
+   * Backend espera query params (no body):
+   *   POST /add?customer_id=&article_id=&quantity=
    */
   async addToCart(customerId, articleId, quantity = 1) {
-    try {
-      const response = await fetch(`${config.CART_URL}/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customer_id: customerId,
-          article_id: articleId,
-          quantity,
-        }),
-      });
+    const params = new URLSearchParams({
+      customer_id: String(customerId),
+      article_id: String(articleId),
+      quantity: String(quantity),
+    });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Error al agregar al carrito');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error al agregar al carrito:', error);
-      throw error;
-    }
+    const url = `${config.CART_URL}/add?${params.toString()}`;
+    const resp = await fetch(url, { method: 'POST' });
+    return parseOrThrow(resp);
   },
 
   /**
-   * Get cart contents
-   * @param {string} customerId - Customer ID
-   * @returns {Promise<Object>} Cart summary with items
+   * Get full cart summary
+   *   GET /{customer_id}
    */
   async getCart(customerId) {
-    try {
-      const response = await fetch(`${config.CART_URL}/${customerId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Error al obtener el carrito');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error al obtener el carrito:', error);
-      throw error;
-    }
+    const url = `${config.CART_URL}/${encodeURIComponent(customerId)}`;
+    const resp = await fetch(url, { method: 'GET' });
+    return parseOrThrow(resp);
   },
 
   /**
-   * Update item quantity in cart
-   * @param {string} customerId - Customer ID
-   * @param {number} articleId - Article ID
-   * @param {number} quantity - New quantity (0 to remove)
-   * @returns {Promise<Object>} Success message
+   * Update item quantity (set exact quantity)
+   * No hay endpoint dedicado en backend.
+   * Estrategia: calculamos delta contra cantidad actual y usamos /add o /remove.
    */
-  async updateCartItem(customerId, articleId, quantity) {
-    try {
-      const params = new URLSearchParams({ quantity: quantity.toString() });
-      
-      const response = await fetch(
-        `${config.CART_URL}/item/${customerId}/${articleId}?${params.toString()}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+  async updateCartItem(customerId, articleId, newQuantity) {
+    if (newQuantity < 0) {
+      throw new Error('La cantidad no puede ser negativa');
+    }
 
-      const data = await response.json();
+    // 1) Obtener carrito para conocer la cantidad actual del item
+    const cart = await this.getCart(customerId);
+    const current = (cart.items || []).find(i => Number(i.article_id) === Number(articleId));
+    const currentQty = current ? Number(current.quantity) : 0;
 
-      if (!response.ok) {
-        throw new Error(data.detail || 'Error al actualizar el carrito');
-      }
+    if (newQuantity === currentQty) {
+      return { ok: true, message: 'Cantidad sin cambios' };
+    }
 
-      return data;
-    } catch (error) {
-      console.error('Error al actualizar el carrito:', error);
-      throw error;
+    if (newQuantity === 0 && currentQty > 0) {
+      // eliminar todo el item de una
+      return this.removeFromCart(customerId, articleId, currentQty);
+    }
+
+    if (newQuantity > currentQty) {
+      // necesitamos agregar la diferencia
+      const delta = newQuantity - currentQty;
+      return this.addToCart(customerId, articleId, delta);
+    } else {
+      // necesitamos restar la diferencia
+      const delta = currentQty - newQuantity;
+      return this.removeFromCart(customerId, articleId, delta);
     }
   },
 
   /**
-   * Remove item from cart
-   * @param {string} customerId - Customer ID
-   * @param {number} articleId - Article ID
-   * @returns {Promise<Object>} Success message
+   * Remove / decrement item from cart
+   *   DELETE /remove?customer_id=&article_id=&quantity=
+   * Si la cantidad enviada >= cantidad en el carrito, el backend borra el ítem.
    */
-  async removeFromCart(customerId, articleId) {
-    try {
-      const response = await fetch(
-        `${config.CART_URL}/item/${customerId}/${articleId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+  async removeFromCart(customerId, articleId, quantity = 1) {
+    const params = new URLSearchParams({
+      customer_id: String(customerId),
+      article_id: String(articleId),
+      quantity: String(quantity),
+    });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Error al eliminar del carrito');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error al eliminar del carrito:', error);
-      throw error;
-    }
+    const url = `${config.CART_URL}/remove?${params.toString()}`;
+    const resp = await fetch(url, { method: 'DELETE' });
+    return parseOrThrow(resp);
   },
 
   /**
-   * Clear entire cart
-   * @param {string} customerId - Customer ID
-   * @returns {Promise<Object>} Success message
+   * Clear entire cart (no endpoint dedicado en backend).
+   * Implementación: traer items y eliminarlos con /remove.
    */
   async clearCart(customerId) {
-    try {
-      const response = await fetch(`${config.CART_URL}/clear/${customerId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Error al vaciar el carrito');
+    const cart = await this.getCart(customerId);
+    const items = cart.items || [];
+    for (const it of items) {
+      const qty = Number(it.quantity) || 0;
+      if (qty > 0) {
+        await this.removeFromCart(customerId, it.article_id, qty);
       }
-
-      return data;
-    } catch (error) {
-      console.error('Error al vaciar el carrito:', error);
-      throw error;
     }
+    return { ok: true };
   },
 
   /**
    * Get cart item count
-   * @param {string} customerId - Customer ID
-   * @returns {Promise<number>} Total item count
+   *   GET /count/{customer_id}
    */
   async getCartCount(customerId) {
-    try {
-      const response = await fetch(`${config.CART_URL}/count/${customerId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Error al obtener el conteo del carrito');
-      }
-
-      return data.total_items || 0;
-    } catch (error) {
-      console.error('Error al obtener el conteo del carrito:', error);
-      throw error;
-    }
+    const url = `${config.CART_URL}/count/${encodeURIComponent(customerId)}`;
+    const resp = await fetch(url, { method: 'GET' });
+    const data = await parseOrThrow(resp);
+    return data.total_items || 0;
   },
 };
 
 export default cartService;
-
