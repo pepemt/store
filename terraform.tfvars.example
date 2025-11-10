@@ -1,0 +1,59 @@
+# ============================================================================
+# EXAMPLE FILE - Copy this file to terraform.tfvars and fill in the values
+# ============================================================================
+# IMPORTANT: terraform.tfvars should NOT be committed to Git (it's in .gitignore)
+
+# ============================================================================
+# OCI AUTHENTICATION
+# ============================================================================
+# Get these values from the OCI Console:
+# Profile > User Settings > API Keys
+
+user_ocid           = "ocid1.user.oc1..aaaaaaaa..."
+fingerprint         = "xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+private_key_path    = "~/.oci/oci_api_key.pem"
+tenancy_ocid        = "ocid1.tenancy.oc1..aaaaaaaa..."
+region              = "us-ashburn-1"  # or your preferred region
+compartment_id      = "ocid1.compartment.oc1..aaaaaaaa..."
+
+# ============================================================================
+# GENERAL
+# ============================================================================
+environment = "dev"  # dev, staging, prod
+
+# ============================================================================
+# POSTGRESQL DATABASE
+# ============================================================================
+postgresql_db_name                  = "my-postgresql-db"
+postgresql_version                  = "14"  # 14, 15, or 16
+postgresql_shape                    = "PostgreSQL.VM.Standard.E4.Flex.2.32GB"
+postgresql_instance_count           = 1  # 1-3 (1 = primary only, 2+ = with replicas)
+postgresql_admin_username           = "postgres"
+postgresql_backup_retention_days    = 7  # 1-35 days
+
+# ============================================================================
+# AUTONOMOUS DATABASE 23AI (VECTOR SEARCH)
+# ============================================================================
+adb_display_name        = "Vector Search Database"
+adb_db_name             = "VECTORDB"  # Max 14 chars, alphanumeric
+adb_is_free_tier        = false
+adb_cpu_core_count      = 1
+adb_storage_size_in_tbs = 1
+
+# NOTE: Access Control (whitelisted IPs) is NOT supported for 23ai databases
+# The database will be publicly accessible. For production, consider using
+# a private endpoint by uncommenting subnet_id configuration in main.tf
+
+# ============================================================================
+# OBJECT STORAGE
+# ============================================================================
+object_storage_bucket_name    = "my-s3-compatible-bucket"
+object_storage_public_access  = true  # false for private access
+object_storage_auto_tiering   = false # true to move old objects to Archive
+
+# ============================================================================
+# TAILSCALE
+# ============================================================================
+# REQUIRED: Get auth key from: https://login.tailscale.com/admin/settings/keys
+# Create a reusable key with --ephemeral and --preauthorized flags
+tailscale_auth_key = "tskey-auth-xxxxxxxxxxxxx"

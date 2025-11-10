@@ -14,7 +14,7 @@ logger = setup_logging()
 
 
 async def async_main():
-    db_url = os.getenv("DATABASE_URL")
+    db_url = os.getenv("STORE_DATABASE_URL")
 
     data_dir = ".data/raw"
     articles_csv = f"{data_dir}/articles.csv"

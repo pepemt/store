@@ -40,15 +40,7 @@ app.include_router(image_router,   prefix="/api/v1/images",   tags=["images"])
 
 def get_database_url() -> str:
     """Obtiene la URL de conexión a PostgreSQL desde las variables de entorno."""
-    database_url = os.getenv("DATABASE_URL")
-    if not database_url:
-        # Fallback a variables individuales si DATABASE_URL no está definida
-        db_host = os.getenv("DB_HOST", "100.64.101.26")
-        db_port = os.getenv("DB_PORT", "5432")
-        db_name = os.getenv("DB_NAME", "store")
-        db_user = os.getenv("DB_USER", "admin")
-        db_password = os.getenv("DB_PASSWORD", "awdrqwer12")
-        database_url = f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    database_url = os.getenv("STORE_DATABASE_URL")
     return database_url
 
 

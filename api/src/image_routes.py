@@ -1,5 +1,5 @@
 """
-Rutas de la API para obtener imágenes desde S3/MinIO.
+Rutas de la API para obtener imágenes desde OCI Object Storage (S3-compatible).
 """
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, status, UploadFile, File, Form
@@ -46,8 +46,8 @@ class UploadImageResponse(BaseModel):
 @router.get("/buckets", response_model=BucketListResponse)
 async def list_buckets():
     """
-    Lista todos los buckets disponibles en S3/MinIO.
-    
+    Lista todos los buckets disponibles en OCI Object Storage.
+
     Returns:
         Lista de nombres de buckets
     """
@@ -73,8 +73,8 @@ async def upload_image(
     image_key: Optional[str] = Form(None, description="Clave de la imagen en S3 (ej: 'products/product1.jpg'). Si no se proporciona, se usa el nombre del archivo")
 ):
     """
-    Sube una imagen a S3/MinIO.
-    
+    Sube una imagen a OCI Object Storage.
+
     Args:
         file: Archivo de imagen a subir
         image_key: Clave opcional para la imagen en S3. Si no se proporciona, se usa el nombre del archivo

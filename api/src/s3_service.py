@@ -1,5 +1,5 @@
 """
-Servicio para manejar operaciones con S3/MinIO.
+Servicio para manejar operaciones con OCI Object Storage (S3-compatible).
 """
 import os
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class S3Service:
-    """Servicio para interactuar con S3/MinIO."""
+    """Servicio para interactuar con OCI Object Storage (S3-compatible)."""
     
     _client = None
     _bucket_name = None
@@ -21,48 +21,40 @@ class S3Service:
     
     @classmethod
     def initialize(cls):
-        """Inicializa el cliente de S3/MinIO."""
+        """Inicializa el cliente de S3 (OCI Object Storage)."""
         try:
-            s3_url = os.getenv("S3_URL", "")
-            if not s3_url:
-                logger.warning("S3_URL no está configurada en las variables de entorno")
-                return
-            
-            # Parsear la URL de S3
-            # Formato esperado: s3://host:port o s3://host:port/bucket
-            parsed = urlparse(s3_url)
-            
-            # Extraer host y puerto
-            host = parsed.hostname or "100.64.101.26"
-            port = parsed.port or 9000
-            
-            # Construir endpoint URL (MinIO usa HTTP)
-            cls._endpoint_url = f"http://{host}:{port}"
-            
-            # Extraer bucket si está en el path
-            if parsed.path and parsed.path != "/":
-                cls._bucket_name = parsed.path.strip("/")
-            else:
-                # Usar bucket por defecto si no está en la URL
-                cls._bucket_name = os.getenv("S3_BUCKET", "store")
-            
-            # Credenciales de S3/MinIO
-            access_key = os.getenv("S3_ACCESS_KEY", os.getenv("MINIO_ROOT_USER", "minioadmin"))
-            secret_key = os.getenv("S3_SECRET_KEY", os.getenv("MINIO_ROOT_PASSWORD", "minioadmin"))
-            
-            # Crear cliente de S3
+            # OCI Object Storage S3-compatible endpoint
+            cls._endpoint_url = os.getenv("MLFLOW_S3_ENDPOINT_URL")
+            if not cls._endpoint_url:
+                logger.error("MLFLOW_S3_ENDPOINT_URL no está configurada en las variables de entorno")
+                raise ValueError("MLFLOW_S3_ENDPOINT_URL es requerida")
+
+            # Bucket para este servicio (store)
+            cls._bucket_name = "store"  # Bucket dedicado para la aplicación store
+
+            # Credenciales de OCI Object Storage (Customer Secret Keys)
+            access_key = os.getenv("AWS_ACCESS_KEY_ID")
+            secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+            region = os.getenv("AWS_DEFAULT_REGION", "us-chicago-1")
+
+            if not access_key or not secret_key:
+                logger.error("AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY son requeridas")
+                raise ValueError("Credenciales S3 no configuradas")
+
+            # Crear cliente de S3 (OCI Object Storage usa HTTPS)
             cls._client = boto3.client(
                 's3',
                 endpoint_url=cls._endpoint_url,
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
+                region_name=region,
                 config=Config(signature_version='s3v4'),
-                use_ssl=False,
-                verify=False
+                use_ssl=True,  # OCI Object Storage usa HTTPS
+                verify=True    # Verificar certificados SSL
             )
-            
-            logger.info(f"✅ S3 Service inicializado: {cls._endpoint_url}, bucket: {cls._bucket_name}")
-            
+
+            logger.info(f"✅ S3 Service (OCI Object Storage) inicializado: {cls._endpoint_url}, bucket: {cls._bucket_name}")
+
         except Exception as e:
             logger.error(f"❌ Error al inicializar S3 Service: {e}")
             raise
@@ -273,8 +265,8 @@ class S3Service:
     @classmethod
     def list_buckets(cls) -> list:
         """
-        Lista todos los buckets disponibles en S3/MinIO.
-        
+        Lista todos los buckets disponibles en OCI Object Storage.
+
         Returns:
             Lista de nombres de buckets
         """
@@ -297,13 +289,13 @@ class S3Service:
     @classmethod
     def upload_image(cls, image_key: str, image_data: bytes, content_type: str = "image/jpeg") -> bool:
         """
-        Sube una imagen a S3/MinIO.
-        
+        Sube una imagen a OCI Object Storage.
+
         Args:
             image_key: Clave de la imagen en S3 (ej: 'products/product1.jpg')
             image_data: Contenido de la imagen en bytes
             content_type: Tipo de contenido de la imagen (default: image/jpeg)
-        
+
         Returns:
             True si se subió exitosamente, False si hay error
         """

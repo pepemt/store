@@ -52,3 +52,11 @@ uv.lock
 
 *.egg-info
 .data
+
+# OCI specific
+.oci/
+wallet.zip
+Wallet_*/
+ssh-keys/
+# Credentials file
+CREDENTIALS.md

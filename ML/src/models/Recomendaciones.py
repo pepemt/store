@@ -34,25 +34,29 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.main import _ensure_java_home  # noqa: E402
 
 
-def configure_minio_env() -> None:
-    """Configura variables AWS para que boto3 use MinIO cuando se suban artifacts."""
+def configure_s3_env() -> None:
+    """Configura variables AWS para que boto3 use OCI Object Storage cuando se suban artifacts."""
 
-    minio_user = os.getenv("MINIO_ROOT_USER")
-    minio_password = os.getenv("MINIO_ROOT_PASSWORD")
-    minio_region = os.getenv("MINIO_REGION", "us-east-1")
-    minio_endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL") or os.getenv("MINIO_ENDPOINT")
+    # Las variables ya deberían estar configuradas en .env
+    # Esta función solo verifica que estén presentes
+    access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    region = os.getenv("AWS_DEFAULT_REGION", "us-chicago-1")
+    endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
 
-    if minio_user and not os.getenv("AWS_ACCESS_KEY_ID"):
-        os.environ["AWS_ACCESS_KEY_ID"] = minio_user
-    if minio_password and not os.getenv("AWS_SECRET_ACCESS_KEY"):
-        os.environ["AWS_SECRET_ACCESS_KEY"] = minio_password
-    if minio_region and not os.getenv("AWS_DEFAULT_REGION"):
-        os.environ["AWS_DEFAULT_REGION"] = minio_region
-    if minio_endpoint and not os.getenv("MLFLOW_S3_ENDPOINT_URL"):
-        os.environ["MLFLOW_S3_ENDPOINT_URL"] = minio_endpoint
+    if not access_key:
+        raise ValueError("AWS_ACCESS_KEY_ID no está configurada en las variables de entorno")
+    if not secret_key:
+        raise ValueError("AWS_SECRET_ACCESS_KEY no está configurada en las variables de entorno")
+    if not endpoint:
+        raise ValueError("MLFLOW_S3_ENDPOINT_URL no está configurada en las variables de entorno")
+
+    # Asegurar que las variables estén en el ambiente
+    if region and not os.getenv("AWS_DEFAULT_REGION"):
+        os.environ["AWS_DEFAULT_REGION"] = region
 
 
-configure_minio_env()
+configure_s3_env()
 
 
 @dataclass
