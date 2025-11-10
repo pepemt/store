@@ -2,6 +2,7 @@ import asyncio
 import os
 from database import Database
 from dotenv import load_dotenv
+from text.indexer import ProductTermIndexer
 from .config import setup_logging
 from .loader import (
     load_articles_from_csv,
@@ -22,6 +23,20 @@ async def async_main():
     transactions_csv = f"{data_dir}/transactions_train.csv"
 
     try:
+        # Index product terms for semantic search
+        logger.info("Starting product term indexing for semantic search...")
+
+        # Create indexer
+        indexer = ProductTermIndexer(use_cache=True, use_gpu=True)
+
+        # Run indexing pipeline (will use cache if valid)
+        indexer.index_from_csv(
+            csv_path=articles_csv,
+            force_rebuild=False,  # Use cache if available
+            upload_to_oracle=True
+        )
+
+        logger.info("Product term indexing completed successfully.")
         logger.info("Initializing database connection...")
         logger.info(f"Connecting to database at {db_url}")
         Database.initialize(db_url)

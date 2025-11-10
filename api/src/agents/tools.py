@@ -7,6 +7,9 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy import select, func, or_
 from database.lib import Database
 from database.models import Article, Transaction
+from text.tokenizer import Tokenizer
+from text.embeddings import EmbeddingModel
+from text.vector_store import OracleVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -322,3 +325,123 @@ async def _get_average_price(session, article_id: int) -> float:
         return float(avg_price)
     except:
         return 29.99 + (article_id % 100)
+
+
+async def semantic_product_search(
+    query: str,
+    limit: int = 10,
+    similarity_threshold: float = 0.5
+) -> List[Dict[str, Any]]:
+    """
+    Search products using semantic similarity of terms.
+
+    Uses term-based vector search to find products similar to the query.
+    This is more flexible than literal text search and understands semantic meaning.
+
+    Args:
+        query: Natural language search query (e.g., "pantalones negros", "red dress")
+        limit: Maximum number of results (default 10, max 20)
+        similarity_threshold: Minimum similarity score (0.0-1.0, default 0.5)
+
+    Returns:
+        List of product dictionaries with details, ranked by relevance
+
+    Example:
+        query: "quiero pantalones negros"
+        → finds products with terms similar to "pantalones" and "negros"
+        → may also match "jeans", "trousers", "dark", etc.
+    """
+    # Ensure limit doesn't exceed 20
+    limit = min(limit, 20)
+
+    logger.info(f"Semantic search query: '{query}', limit={limit}")
+
+    # Step 1: Extract terms from query
+    tokenizer = Tokenizer(min_length=2, languages=['en', 'es'])
+    query_terms = tokenizer.extract_terms(query)
+
+    if not query_terms:
+        logger.warning(f"No valid terms extracted from query: '{query}'")
+        return []
+
+    logger.info(f"Extracted terms: {query_terms}")
+
+    # Step 2: Load embedding model and vectorize terms
+    embedding_model = EmbeddingModel(
+        model_name="Alibaba-NLP/gte-Qwen2-1.5B-instruct",
+        use_gpu=True
+    )
+
+    # Step 3: Search for similar terms in Oracle 23ai
+    vector_store = OracleVectorStore()
+
+    # Collect candidate article IDs from all similar terms
+    article_scores = {}  # article_id → cumulative score
+
+    for term in query_terms:
+        # Get embedding for this term
+        term_embedding = embedding_model.embed(term)
+
+        # Find similar terms
+        similar_terms = vector_store.find_similar_terms(
+            query_embedding=term_embedding,
+            top_k=10,  # Top 10 similar terms per query term
+            min_similarity=similarity_threshold
+        )
+
+        logger.info(f"Term '{term}' found {len(similar_terms)} similar terms")
+
+        # Aggregate article IDs with scores
+        for _, article_ids, similarity in similar_terms:
+            for article_id in article_ids:
+                if article_id not in article_scores:
+                    article_scores[article_id] = 0.0
+                article_scores[article_id] += similarity
+
+    vector_store.close()
+
+    if not article_scores:
+        logger.warning("No matching articles found via semantic search")
+        return []
+
+    # Step 4: Rank articles by score and get top results
+    ranked_article_ids = sorted(
+        article_scores.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:limit]
+
+    logger.info(f"Found {len(ranked_article_ids)} candidate articles")
+
+    # Step 5: Fetch article details from PostgreSQL
+    async with Database.get_session() as session:
+        article_ids = [int(article_id) for article_id, _ in ranked_article_ids]
+
+        stmt = select(Article).where(Article.article_id.in_(article_ids))
+        result = await session.execute(stmt)
+        articles = {article.article_id: article for article in result.scalars().all()}
+
+        # Build results in rank order
+        products = []
+        for article_id, relevance_score in ranked_article_ids:
+            article = articles.get(int(article_id))
+            if not article:
+                continue
+
+            price = await _get_average_price(session, article.article_id)
+
+            products.append({
+                "id": article.article_id,
+                "name": article.prod_name,
+                "description": article.detail_desc,
+                "category": article.product_type_name,
+                "department": article.department_name,
+                "product_group": article.product_group_name,
+                "color": article.colour_group_name,
+                "price": price,
+                "stock": 100,  # Mock
+                "relevance_score": round(relevance_score, 3)  # Semantic relevance
+            })
+
+        logger.info(f"Returning {len(products)} products from semantic search")
+        return products

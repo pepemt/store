@@ -13,7 +13,6 @@ from .image_routes import router as image_router
 
 from database.lib import Database
 from images.lib import process_image_info
-from text.lib import format_text_info
 from .s3_service import S3Service
 
 load_dotenv()
@@ -110,11 +109,6 @@ def main():
     image_data = process_image_info("example.jpg", 1920, 1080)
     logger.info("Image processed:")
     for k, v in image_data.items():
-        logger.info(f"  {k}: {v}")
-
-    text_data = format_text_info("Example Text", 5)
-    logger.info("Text processed:")
-    for k, v in text_data.items():
         logger.info(f"  {k}: {v}")
 
     host = os.getenv("FASTAPI_HOST", "0.0.0.0")

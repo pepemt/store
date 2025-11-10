@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from models import AgentState
 from llm_config import llm
-from tools import search_products_by_name, search_products_by_category
+from tools import search_products_by_name, search_products_by_category, semantic_product_search
 from metadata_cache import get_metadata_cache
 
 logger = logging.getLogger(__name__)
@@ -86,8 +86,18 @@ Response:"""
         # Try search with all available filters
         products = []
 
+        # Strategy 0: Try semantic search first (most flexible and intelligent)
+        if search_query:
+            try:
+                logger.info("Attempting semantic search...")
+                products = await semantic_product_search(query=user_message, limit=5)
+                if products:
+                    logger.info(f"Semantic search returned {len(products)} products")
+            except Exception as e:
+                logger.warning(f"Semantic search failed, falling back to literal search: {e}")
+
         # Strategy 1: Search with ALL filters if we have specific ones
-        if category or color or product_group:
+        if not products and (category or color or product_group):
             products = await search_products_by_category(
                 category=category,
                 department=department,
