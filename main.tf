@@ -413,6 +413,13 @@ resource "oci_core_instance" "bastion" {
   }
 
   preserve_boot_volume = false
+
+  # Prevent unnecessary updates that cause errors with kms_key_id
+  lifecycle {
+    ignore_changes = [
+      source_details
+    ]
+  }
 }
 
 # ============================================================================
@@ -538,6 +545,48 @@ resource "oci_database_autonomous_database" "vector_db" {
     "Environment" = var.environment
     "ManagedBy"   = "Terraform"
     "Service"     = "VectorDatabase"
+  }
+}
+
+# Download and extract ADB wallet automatically
+resource "null_resource" "download_adb_wallet" {
+  depends_on = [oci_database_autonomous_database.vector_db]
+
+  triggers = {
+    adb_id = oci_database_autonomous_database.vector_db.id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      # Create wallet directory
+      mkdir -p .data/adb-wallet
+
+      # Check if wallet already exists
+      if [ -f .data/adb-wallet/tnsnames.ora ]; then
+        echo "Wallet already exists in .data/adb-wallet/, skipping download"
+        exit 0
+      fi
+
+      # Download wallet (will fail gracefully if OCI CLI not configured)
+      if ! oci db autonomous-database generate-wallet \
+        --autonomous-database-id ${oci_database_autonomous_database.vector_db.id} \
+        --file .data/adb-wallet/wallet.zip \
+        --password 'WalletPassword123#' 2>/dev/null; then
+        echo "WARNING: Could not download wallet automatically. Please download manually:"
+        echo "  oci db autonomous-database generate-wallet --autonomous-database-id ${oci_database_autonomous_database.vector_db.id} --file .data/adb-wallet/wallet.zip --password 'WalletPassword123#'"
+        exit 0
+      fi
+
+      # Extract wallet
+      cd .data/adb-wallet && unzip -o wallet.zip && rm wallet.zip
+
+      echo "Wallet downloaded and extracted to .data/adb-wallet/"
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "rm -rf .data/adb-wallet || true"
   }
 }
 
@@ -681,8 +730,14 @@ output "adb_ocid" {
 }
 
 output "adb_wallet_download_command" {
-  description = "Command to download ADB wallet"
+  description = "Command to download ADB wallet (already auto-downloaded to .data/adb-wallet/)"
   value       = "oci db autonomous-database generate-wallet --autonomous-database-id ${oci_database_autonomous_database.vector_db.id} --file wallet.zip --password 'WalletPassword123#'"
+}
+
+output "adb_wallet_location" {
+  description = "Location of the extracted ADB wallet"
+  value       = "${path.module}/.data/adb-wallet"
+  depends_on  = [null_resource.download_adb_wallet]
 }
 
 # Object Storage

@@ -16,6 +16,7 @@ logger = setup_logging()
 
 async def async_main():
     db_url = os.getenv("STORE_DATABASE_URL")
+    db_initialized = False
 
     data_dir = ".data/raw"
     articles_csv = f"{data_dir}/articles.csv"
@@ -27,7 +28,7 @@ async def async_main():
         logger.info("Starting product term indexing for semantic search...")
 
         # Create indexer
-        indexer = ProductTermIndexer(use_cache=True, use_gpu=True)
+        indexer = ProductTermIndexer(use_cache=True, use_gpu=False)
 
         # Run indexing pipeline (will use cache if valid)
         indexer.index_from_csv(
@@ -40,6 +41,7 @@ async def async_main():
         logger.info("Initializing database connection...")
         logger.info(f"Connecting to database at {db_url}")
         Database.initialize(db_url)
+        db_initialized = True
 
         # Wait for the connection to be ready
         await Database.wait_for_connection()
@@ -63,9 +65,10 @@ async def async_main():
         logger.error(f"Error during data loading: {e}", exc_info=True)
         raise
     finally:
-        # Clean up connections
-        await Database.cleanup()
-        logger.info("Database connection closed.")
+        # Clean up connections only if database was initialized
+        if db_initialized:
+            await Database.cleanup()
+            logger.info("Database connection closed.")
 
 
 def main():

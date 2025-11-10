@@ -35,30 +35,46 @@ class OracleVectorStore:
         self.user = user or os.getenv("ORACLE_USER", "admin")
         self.password = password or os.getenv("ORACLE_PASSWORD")
         self.dsn = dsn or os.getenv("ORACLE_DSN")
-        
+        self.wallet_location = wallet_location or os.getenv("ORACLE_WALLET_LOCATION")
+
         if not self.password:
             raise ValueError("Oracle password not provided (set ORACLE_PASSWORD env)")
         if not self.dsn:
             raise ValueError("Oracle DSN not provided (set ORACLE_DSN env)")
-        
-        # Setup wallet for Autonomous Database if provided
-        if wallet_location:
-            oracledb.init_oracle_client(
-                config_dir=wallet_location
-            )
-        
+
         self.connection = None
         self._connect()
-    
+
     def _connect(self):
         """Establish database connection."""
         try:
+            # Read tnsnames.ora to get full connection string
+            tnsnames_path = f"{self.wallet_location}/tnsnames.ora"
+            connection_string = None
+
+            try:
+                with open(tnsnames_path, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(f"{self.dsn} ="):
+                            # Extract the connection string
+                            connection_string = line.split('=', 1)[1].strip()
+                            break
+            except FileNotFoundError:
+                raise ConnectionError(f"tnsnames.ora not found at {tnsnames_path}")
+
+            if not connection_string:
+                raise ConnectionError(f"Service '{self.dsn}' not found in tnsnames.ora")
+
+            # Connect with wallet support (thin mode)
             self.connection = oracledb.connect(
                 user=self.user,
                 password=self.password,
-                dsn=self.dsn
+                dsn=connection_string,
+                config_dir=self.wallet_location
             )
             print(f"Connected to Oracle Database: {self.dsn}")
+        except ConnectionError:
+            raise
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Oracle: {e}")
     
