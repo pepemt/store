@@ -3,7 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
 
-from sqlalchemy import text
+from sqlalchemy import text, select, func
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     create_async_engine,
@@ -132,12 +132,40 @@ class Database:
             await session.close()
 
     # --------------------------
+    # Count functions
+    # --------------------------
+    @staticmethod
+    async def count_articles() -> int:
+        """Count total articles in database."""
+        from database.models import Article
+        async with Database.get_session() as session:
+            result = await session.execute(select(func.count()).select_from(Article))
+            return result.scalar()
+
+    @staticmethod
+    async def count_customers() -> int:
+        """Count total customers in database."""
+        from database.models import Customer
+        async with Database.get_session() as session:
+            result = await session.execute(select(func.count()).select_from(Customer))
+            return result.scalar()
+
+    @staticmethod
+    async def count_transactions() -> int:
+        """Count total transactions in database."""
+        from database.models import Transaction
+        async with Database.get_session() as session:
+            result = await session.execute(select(func.count()).select_from(Transaction))
+            return result.scalar()
+
+    # --------------------------
     # Bulk inserts (simples)
     # --------------------------
     @staticmethod
     async def bulk_insert_articles(articles: list) -> int:
         """
-        Inserción en bloque simple. No anidamos `begin()` con `commit()`.
+        Inserción en bloque simple usando add_all.
+        Asume que no hay conflictos (tablas vacías o datos nuevos).
         """
         async with Database.get_session() as session:
             session.add_all(articles)
@@ -146,6 +174,10 @@ class Database:
 
     @staticmethod
     async def bulk_insert_customers(customers: list) -> int:
+        """
+        Inserción en bloque simple usando add_all.
+        Asume que no hay conflictos (tablas vacías o datos nuevos).
+        """
         async with Database.get_session() as session:
             session.add_all(customers)
             await session.commit()
@@ -153,6 +185,10 @@ class Database:
 
     @staticmethod
     async def bulk_insert_transactions(transactions: list) -> int:
+        """
+        Inserción en bloque simple usando add_all.
+        Asume que no hay conflictos (tablas vacías o datos nuevos).
+        """
         async with Database.get_session() as session:
             session.add_all(transactions)
             await session.commit()

@@ -8,9 +8,16 @@ logger = logging.getLogger(__name__)
 async def load_articles_from_csv(csv_path: str, batch_size: int = 1000):
     logger.info(f"Initializing article loading from {csv_path}")
 
+    # Check how many articles already exist
+    existing_count = await Database.count_articles()
+    logger.info(f"Found {existing_count} existing articles, skipping them...")
+
     total_inserted = 0
 
-    for chunk in pd.read_csv(csv_path, chunksize=batch_size):
+    # Skip existing rows + 1 for header if starting from offset > 0
+    skiprows = existing_count if existing_count == 0 else range(1, existing_count + 1)
+
+    for chunk in pd.read_csv(csv_path, chunksize=batch_size, skiprows=skiprows):
         articles = []
 
         for _, row in chunk.iterrows():
@@ -45,18 +52,28 @@ async def load_articles_from_csv(csv_path: str, batch_size: int = 1000):
 
         inserted = await Database.bulk_insert_articles(articles)
         total_inserted += inserted
-        logger.info(f"Total inserted: {total_inserted} articles...")
+        logger.info(f"Total inserted: {existing_count + total_inserted} articles...")
 
-    logger.info(f"Loading complete: {total_inserted} articles inserted")
+        # Reset skiprows to None after first chunk to continue normally
+        skiprows = None
+
+    logger.info(f"Loading complete: {total_inserted} new articles inserted (total: {existing_count + total_inserted})")
     return total_inserted
 
 
 async def load_customers_from_csv(csv_path: str, batch_size: int = 1000):
     logger.info(f"Initializing customer loading from {csv_path}")
 
+    # Check how many customers already exist
+    existing_count = await Database.count_customers()
+    logger.info(f"Found {existing_count} existing customers, skipping them...")
+
     total_inserted = 0
 
-    for chunk in pd.read_csv(csv_path, chunksize=batch_size):
+    # Skip existing rows + 1 for header if starting from offset > 0
+    skiprows = existing_count if existing_count == 0 else range(1, existing_count + 1)
+
+    for chunk in pd.read_csv(csv_path, chunksize=batch_size, skiprows=skiprows):
         customers = []
 
         for _, row in chunk.iterrows():
@@ -73,18 +90,28 @@ async def load_customers_from_csv(csv_path: str, batch_size: int = 1000):
 
         inserted = await Database.bulk_insert_customers(customers)
         total_inserted += inserted
-        logger.info(f"Total inserted: {total_inserted} customers...")
+        logger.info(f"Total inserted: {existing_count + total_inserted} customers...")
 
-    logger.info(f"Loading complete: {total_inserted} customers inserted")
+        # Reset skiprows to None after first chunk to continue normally
+        skiprows = None
+
+    logger.info(f"Loading complete: {total_inserted} new customers inserted (total: {existing_count + total_inserted})")
     return total_inserted
 
 
 async def load_transactions_from_csv(csv_path: str, batch_size: int = 5000):
     logger.info(f"Initializing transaction loading from {csv_path}")
 
+    # Check how many transactions already exist
+    existing_count = await Database.count_transactions()
+    logger.info(f"Found {existing_count} existing transactions, skipping them...")
+
     total_inserted = 0
 
-    for chunk in pd.read_csv(csv_path, chunksize=batch_size):
+    # Skip existing rows + 1 for header if starting from offset > 0
+    skiprows = existing_count if existing_count == 0 else range(1, existing_count + 1)
+
+    for chunk in pd.read_csv(csv_path, chunksize=batch_size, skiprows=skiprows):
         transactions = []
 
         for _, row in chunk.iterrows():
@@ -99,7 +126,10 @@ async def load_transactions_from_csv(csv_path: str, batch_size: int = 5000):
 
         inserted = await Database.bulk_insert_transactions(transactions)
         total_inserted += inserted
-        logger.info(f"Total inserted: {total_inserted} transactions...")
+        logger.info(f"Total inserted: {existing_count + total_inserted} transactions...")
 
-    logger.info(f"Loading complete: {total_inserted} transactions inserted")
+        # Reset skiprows to None after first chunk to continue normally
+        skiprows = None
+
+    logger.info(f"Loading complete: {total_inserted} new transactions inserted (total: {existing_count + total_inserted})")
     return total_inserted

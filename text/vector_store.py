@@ -21,7 +21,8 @@ class OracleVectorStore:
         user: str = None,
         password: str = None,
         dsn: str = None,
-        wallet_location: str = None
+        wallet_location: str = None,
+        wallet_password: str = None
     ):
         """
         Initialize Oracle Vector Store.
@@ -31,16 +32,22 @@ class OracleVectorStore:
             password: Database password (or from ORACLE_PASSWORD env)
             dsn: Database DSN (or from ORACLE_DSN env)
             wallet_location: Path to wallet directory (for Autonomous DB)
+            wallet_password: Wallet password (or from ORACLE_WALLET_PASSWORD env)
         """
         self.user = user or os.getenv("ORACLE_USER", "admin")
         self.password = password or os.getenv("ORACLE_PASSWORD")
         self.dsn = dsn or os.getenv("ORACLE_DSN")
         self.wallet_location = wallet_location or os.getenv("ORACLE_WALLET_LOCATION")
+        self.wallet_password = wallet_password or os.getenv("ORACLE_WALLET_PASSWORD")
 
         if not self.password:
             raise ValueError("Oracle password not provided (set ORACLE_PASSWORD env)")
         if not self.dsn:
             raise ValueError("Oracle DSN not provided (set ORACLE_DSN env)")
+        if not self.wallet_location:
+            raise ValueError("Oracle wallet location not provided (set ORACLE_WALLET_LOCATION env)")
+        if not self.wallet_password:
+            raise ValueError("Oracle wallet password not provided (set ORACLE_WALLET_PASSWORD env)")
 
         self.connection = None
         self._connect()
@@ -48,33 +55,20 @@ class OracleVectorStore:
     def _connect(self):
         """Establish database connection."""
         try:
-            # Read tnsnames.ora to get full connection string
-            tnsnames_path = f"{self.wallet_location}/tnsnames.ora"
-            connection_string = None
-
-            try:
-                with open(tnsnames_path, 'r') as f:
-                    for line in f:
-                        if line.strip().startswith(f"{self.dsn} ="):
-                            # Extract the connection string
-                            connection_string = line.split('=', 1)[1].strip()
-                            break
-            except FileNotFoundError:
-                raise ConnectionError(f"tnsnames.ora not found at {tnsnames_path}")
-
-            if not connection_string:
-                raise ConnectionError(f"Service '{self.dsn}' not found in tnsnames.ora")
-
             # Connect with wallet support (thin mode)
+            # For Autonomous Database with mTLS, we need:
+            # - config_dir: directory with tnsnames.ora
+            # - wallet_location: directory with ewallet.pem
+            # - wallet_password: password set when downloading the wallet
             self.connection = oracledb.connect(
                 user=self.user,
                 password=self.password,
-                dsn=connection_string,
-                config_dir=self.wallet_location
+                dsn=self.dsn,
+                config_dir=self.wallet_location,
+                wallet_location=self.wallet_location,
+                wallet_password=self.wallet_password
             )
             print(f"Connected to Oracle Database: {self.dsn}")
-        except ConnectionError:
-            raise
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Oracle: {e}")
     
@@ -87,14 +81,15 @@ class OracleVectorStore:
             drop_if_exists: Drop table if it exists
         """
         cursor = self.connection.cursor()
-        
-        try:
-            if drop_if_exists:
+
+        # Drop table if requested
+        if drop_if_exists:
+            try:
                 cursor.execute("DROP TABLE term_vectors CASCADE CONSTRAINTS")
                 print("Dropped existing term_vectors table")
-        except Exception:
-            pass  # Table doesn't exist
-        
+            except Exception:
+                pass  # Table doesn't exist
+
         # Create table with VECTOR type
         create_table_sql = f"""
         CREATE TABLE term_vectors (
@@ -107,14 +102,27 @@ class OracleVectorStore:
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
-        
-        cursor.execute(create_table_sql)
-        print(f"Created term_vectors table (embedding_dim={embedding_dim})")
-        
-        # Create regular index for term lookups
-        cursor.execute("CREATE INDEX term_lookup_idx ON term_vectors(term)")
-        print("Created term lookup index")
-        
+
+        try:
+            cursor.execute(create_table_sql)
+            print(f"Created term_vectors table (embedding_dim={embedding_dim})")
+        except Exception as e:
+            if "ORA-00955" in str(e):  # Table already exists
+                print(f"Table term_vectors already exists (skipped creation)")
+            else:
+                raise
+
+        # Create regular index for term lookups (if not already exists)
+        # Note: UNIQUE constraint on 'term' column already creates an index
+        try:
+            cursor.execute("CREATE INDEX term_lookup_idx ON term_vectors(term)")
+            print("Created term lookup index")
+        except Exception as e:
+            if "ORA-01408" in str(e):
+                print("Term lookup index already exists (skipped)")
+            else:
+                raise
+
         self.connection.commit()
         cursor.close()
     
@@ -321,22 +329,39 @@ class OracleVectorStore:
     def get_stats(self) -> Dict:
         """Get statistics about the vector store."""
         cursor = self.connection.cursor()
-        
+
         # Count terms
         cursor.execute("SELECT COUNT(*) FROM term_vectors")
         total_terms = cursor.fetchone()[0]
-        
-        # Get embedding dimension
-        cursor.execute("""
-            SELECT DBMS_VECTOR.vector_dimension(embedding) as dim
-            FROM term_vectors
-            WHERE ROWNUM = 1
-        """)
-        result = cursor.fetchone()
-        embedding_dim = result[0] if result else None
-        
+
+        # Get embedding dimension by retrieving a vector and checking its length
+        embedding_dim = None
+        if total_terms > 0:
+            try:
+                # Setup output type handler to convert VECTOR to list
+                def output_type_handler(cursor, metadata):
+                    if metadata.type_code is oracledb.DB_TYPE_VECTOR:
+                        return cursor.var(
+                            metadata.type_code,
+                            arraysize=cursor.arraysize,
+                            outconverter=list
+                        )
+
+                self.connection.outputtypehandler = output_type_handler
+
+                cursor.execute("""
+                    SELECT embedding
+                    FROM term_vectors
+                    WHERE ROWNUM = 1
+                """)
+                result = cursor.fetchone()
+                if result and result[0]:
+                    embedding_dim = len(result[0])
+            except Exception as e:
+                print(f"Warning: Could not determine embedding dimension: {e}")
+
         cursor.close()
-        
+
         return {
             'total_terms': total_terms,
             'embedding_dim': embedding_dim
