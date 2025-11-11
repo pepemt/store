@@ -36,6 +36,59 @@ class Database:
     # Inicialización / Engine
     # --------------------------
     @staticmethod
+    async def create_databases_if_not_exist(
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        databases: list[str] = None
+    ) -> None:
+        """
+        Crea las bases de datos especificadas si no existen.
+        Se conecta a la base de datos 'postgres' por defecto para crear las demás.
+
+        Args:
+            host: Host de PostgreSQL
+            port: Puerto de PostgreSQL
+            user: Usuario de PostgreSQL
+            password: Contraseña de PostgreSQL
+            databases: Lista de nombres de bases de datos a crear.
+                      Por defecto ['store', 'mlflow']
+        """
+        if databases is None:
+            databases = ['store', 'mlflow']
+
+        # Conectar a la base de datos por defecto 'postgres'
+        connection_string = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/postgres"
+
+        engine = create_async_engine(
+            connection_string,
+            isolation_level="AUTOCOMMIT",
+            echo=False
+        )
+
+        try:
+            logger.info("Verificando y creando bases de datos si es necesario...")
+
+            async with engine.connect() as conn:
+                for db_name in databases:
+                    # Verificar si la base de datos existe
+                    result = await conn.execute(
+                        text("SELECT 1 FROM pg_database WHERE datname = :db_name"),
+                        {"db_name": db_name}
+                    )
+
+                    if result.scalar() is None:
+                        # Crear la base de datos
+                        await conn.execute(text(f"CREATE DATABASE {db_name}"))
+                        logger.info(f"Base de datos '{db_name}' creada exitosamente.")
+                    else:
+                        logger.info(f"Base de datos '{db_name}' ya existe.")
+
+        finally:
+            await engine.dispose()
+
+    @staticmethod
     def initialize(connection_string: str, echo: bool = False) -> None:
         """
         Debe llamarse una sola vez en el arranque de la app.

@@ -53,6 +53,20 @@ async def startup_event():
             f"{database_url.split('@')[1] if '@' in database_url else database_url}"
         )
 
+        db_host = os.getenv("STORE_DATABASE_HOST")
+        db_port = int(os.getenv("STORE_DATABASE_PORT"))
+        db_user = os.getenv("STORE_DATABASE_USER")
+        db_password = os.getenv("STORE_DATABASE_PASSWORD")
+
+        logger.info("Verificando y creando bases de datos...")
+        await Database.create_databases_if_not_exist(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            databases=['store', 'mlflow']
+        )
+
         # DB
         Database.initialize(database_url, echo=False)
         await Database.wait_for_connection()
