@@ -369,7 +369,7 @@ async def semantic_product_search(
     # Step 2: Load embedding model and vectorize terms
     embedding_model = EmbeddingModel(
         model_name="Alibaba-NLP/gte-Qwen2-1.5B-instruct",
-        use_gpu=True
+        use_gpu=False
     )
 
     # Step 3: Search for similar terms in Oracle 23ai

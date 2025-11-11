@@ -39,20 +39,23 @@ def configure_s3_env() -> None:
 
     # Las variables ya deberían estar configuradas en .env
     # Esta función solo verifica que estén presentes
-    access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    region = os.getenv("AWS_DEFAULT_REGION", "us-chicago-1")
+    access_key = os.getenv("MLFLOW_S3_ACCESS_KEY_ID")
+    secret_key = os.getenv("MLFLOW_S3_SECRET_ACCESS_KEY")
+    region = os.getenv("MLFLOW_S3_REGION", "us-chicago-1")
     endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
 
     if not access_key:
-        raise ValueError("AWS_ACCESS_KEY_ID no está configurada en las variables de entorno")
+        raise ValueError("MLFLOW_S3_ACCESS_KEY_ID no está configurada en las variables de entorno")
     if not secret_key:
-        raise ValueError("AWS_SECRET_ACCESS_KEY no está configurada en las variables de entorno")
+        raise ValueError("MLFLOW_S3_SECRET_ACCESS_KEY no está configurada en las variables de entorno")
     if not endpoint:
         raise ValueError("MLFLOW_S3_ENDPOINT_URL no está configurada en las variables de entorno")
 
-    # Asegurar que las variables estén en el ambiente
-    if region and not os.getenv("AWS_DEFAULT_REGION"):
+    # Asegurar que las variables estén en el ambiente para boto3
+    # boto3 internamente busca AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY
+    os.environ["AWS_ACCESS_KEY_ID"] = access_key
+    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
+    if region:
         os.environ["AWS_DEFAULT_REGION"] = region
 
 

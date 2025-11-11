@@ -24,21 +24,21 @@ class S3Service:
         """Inicializa el cliente de S3 (OCI Object Storage)."""
         try:
             # OCI Object Storage S3-compatible endpoint
-            cls._endpoint_url = os.getenv("MLFLOW_S3_ENDPOINT_URL")
+            cls._endpoint_url = os.getenv("STORE_S3_ENDPOINT_URL")
             if not cls._endpoint_url:
-                logger.error("MLFLOW_S3_ENDPOINT_URL no está configurada en las variables de entorno")
-                raise ValueError("MLFLOW_S3_ENDPOINT_URL es requerida")
+                logger.error("STORE_S3_ENDPOINT_URL no está configurada en las variables de entorno")
+                raise ValueError("STORE_S3_ENDPOINT_URL es requerida")
 
             # Bucket para este servicio (store)
-            cls._bucket_name = "store"  # Bucket dedicado para la aplicación store
+            cls._bucket_name = os.getenv("STORE_S3_BUCKET", "store")  # Bucket dedicado para la aplicación store
 
             # Credenciales de OCI Object Storage (Customer Secret Keys)
-            access_key = os.getenv("AWS_ACCESS_KEY_ID")
-            secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-            region = os.getenv("AWS_DEFAULT_REGION", "us-chicago-1")
+            access_key = os.getenv("STORE_S3_ACCESS_KEY_ID")
+            secret_key = os.getenv("STORE_S3_SECRET_ACCESS_KEY")
+            region = os.getenv("STORE_S3_REGION", "us-chicago-1")
 
             if not access_key or not secret_key:
-                logger.error("AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY son requeridas")
+                logger.error("STORE_S3_ACCESS_KEY_ID y STORE_S3_SECRET_ACCESS_KEY son requeridas")
                 raise ValueError("Credenciales S3 no configuradas")
 
             # Crear cliente de S3 (OCI Object Storage usa HTTPS)
