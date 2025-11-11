@@ -658,6 +658,45 @@ resource "oci_objectstorage_bucket" "mlflow_bucket" {
 }
 
 # ============================================================================
+# GENERATIVE AI CONFIGURATION
+# ============================================================================
+
+# NOTE: For on-demand models, IAM policies are NOT required if you already have
+# valid OCI credentials (which you do, since Terraform works).
+#
+# IAM policies are only needed for:
+# - Dedicated AI Clusters (hosting/fine-tuning)
+# - RAG Agents with Knowledge Bases
+# - Service-to-service integrations
+#
+# Uncomment the policy below only if you plan to use those features.
+
+/*
+resource "oci_identity_policy" "genai_policy" {
+  compartment_id = var.tenancy_ocid
+  name           = "genai-service-policy-${var.environment}"
+  description    = "Policy to allow usage of OCI Generative AI service"
+
+  statements = [
+    # For dedicated clusters and custom models
+    "Allow dynamic-group genai-dynamic-group to manage generative-ai-family in compartment id ${var.compartment_id}",
+
+    # For RAG agents with Object Storage knowledge bases
+    "Allow service generative-ai to read objectstorage-namespaces in compartment id ${var.compartment_id}",
+
+    # For private endpoints (if needed)
+    "Allow service generative-ai to use virtual-network-family in compartment id ${var.compartment_id}"
+  ]
+
+  freeform_tags = {
+    "Environment" = var.environment
+    "ManagedBy"   = "Terraform"
+    "Service"     = "GenerativeAI"
+  }
+}
+*/
+
+# ============================================================================
 # OUTPUTS
 # ============================================================================
 
@@ -939,4 +978,68 @@ output "deployment_summary" {
 
   ========================================
   EOT
+}
+
+# Generative AI Outputs
+output "genai_inference_endpoint" {
+  description = "OCI Generative AI inference endpoint URL"
+  value       = "https://inference.generativeai.${var.region}.oci.oraclecloud.com"
+}
+
+output "genai_compartment_id" {
+  description = "Compartment ID for Generative AI service calls"
+  value       = var.compartment_id
+}
+
+output "genai_model_id" {
+  description = "Model ID for xAI Grok 4"
+  value       = var.genai_model_id
+}
+
+output "genai_configuration_summary" {
+  description = "Complete OCI Generative AI configuration for application use"
+  value = <<-EOT
+
+========================================
+OCI GENERATIVE AI CONFIGURATION
+========================================
+
+ENDPOINT: https://inference.generativeai.${var.region}.oci.oraclecloud.com
+COMPARTMENT ID: ${var.compartment_id}
+MODEL: ${var.genai_model_id}
+REGION: ${var.region}
+
+ENVIRONMENT VARIABLES FOR .env:
+---------------------------------
+OCI_GENAI_ENDPOINT=https://inference.generativeai.${var.region}.oci.oraclecloud.com
+OCI_GENAI_COMPARTMENT_ID=${var.compartment_id}
+OCI_GENAI_MODEL_ID=${var.genai_model_id}
+
+PYTHON CONFIGURATION (LangChain):
+----------------------------------
+from langchain_community.chat_models.oci_generative_ai import ChatOCIGenAI
+import oci
+
+config = oci.config.from_file(profile_name="DEFAULT")
+
+llm = ChatOCIGenAI(
+    model_id="${var.genai_model_id}",
+    service_endpoint="https://inference.generativeai.${var.region}.oci.oraclecloud.com",
+    compartment_id="${var.compartment_id}",
+    auth_type="API_KEY",
+    auth_profile="DEFAULT",
+    model_kwargs={
+        "temperature": 0.7,
+        "max_tokens": 2000,
+    }
+)
+
+AUTHENTICATION:
+---------------
+Uses the same OCI config as Terraform (${var.private_key_path})
+No additional API keys required
+
+========================================
+EOT
+  sensitive = false
 }

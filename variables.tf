@@ -185,3 +185,25 @@ variable "tailscale_auth_key" {
   type        = string
   sensitive   = true
 }
+
+# ============================================================================
+# GENERATIVE AI VARIABLES
+# ============================================================================
+
+variable "genai_model_id" {
+  description = "Model ID for OCI Generative AI service"
+  type        = string
+  default     = "cohere.command-r-plus"
+
+  validation {
+    condition = contains([
+      "cohere.command-r-plus",
+      "cohere.command-r-16k",
+      "cohere.command",
+      "meta.llama-3.1-70b-instruct",
+      "meta.llama-3.1-405b-instruct",
+      "meta.llama-3.3-70b-instruct"
+    ], var.genai_model_id)
+    error_message = "Model ID must be a valid OCI Generative AI model supported by LangChain ChatOCIGenAI."
+  }
+}

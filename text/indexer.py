@@ -299,24 +299,3 @@ class ProductTermIndexer:
             
         finally:
             store.close()
-
-
-# Example usage
-if __name__ == "__main__":
-    import sys
-    
-    if len(sys.argv) < 2:
-        print("Usage: python -m text.indexer <articles_csv_path>")
-        sys.exit(1)
-    
-    csv_path = sys.argv[1]
-    
-    # Create indexer
-    indexer = ProductTermIndexer(use_cache=True)
-    
-    # Run full pipeline
-    indexer.index_from_csv(
-        csv_path=csv_path,
-        force_rebuild=False,
-        upload_to_oracle=True
-    )
