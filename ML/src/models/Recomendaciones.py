@@ -20,7 +20,7 @@ from pyspark.sql import DataFrame, SparkSession
 from scipy.sparse import coo_matrix, csr_matrix
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENV_PATH = PROJECT_ROOT / ".env"
+ENV_PATH = PROJECT_ROOT.parent / ".env"
 
 warnings.filterwarnings("ignore", category=UserWarning,module="pyspark")
 if ENV_PATH.exists():
@@ -128,9 +128,9 @@ def build_spark_session() -> SparkSession:
 
 def read_table(spark: SparkSession, table: str) -> DataFrame:
     print(f"Leyendo tabla {table} desde Postgres")
-    postgres_url = _get_env("POSTGRES_URL", required=True)
-    postgres_user = _get_env("POSTGRES_USER", required=True)
-    postgres_password = _get_env("POSTGRES_PASSWORD", required=True)
+    postgres_url = _get_env("SPARK_DATABASE_URL", required=True)
+    postgres_user = _get_env("SPARK_DATABASE_USER", required=True)
+    postgres_password = _get_env("SPARK_DATABASE_PASSWORD", required=True)
 
     reader = spark.read.format("jdbc")
     options = {
