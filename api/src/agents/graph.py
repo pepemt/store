@@ -2,38 +2,18 @@
 
 from langgraph.graph import StateGraph, START, END
 from models import AgentState
-from nodes import (
-    classifier_node,
-    product_search_node,
-    product_recommendations_node,
-    chat_node,
-)
-from routing import route_by_intent
+from nodes import semantic_product_search_node
 
 
 def build_graph():
-    """Build graph with e-commerce routes"""
+    """Build graph with ONLY semantic product search"""
     builder = StateGraph(AgentState)
 
-    # Add nodes
-    builder.add_node("classifier", classifier_node)
-    builder.add_node("product_search", product_search_node)
-    builder.add_node("product_recommendations", product_recommendations_node)
-    builder.add_node("chat", chat_node)
+    # Add only semantic search node
+    builder.add_node("semantic_search", semantic_product_search_node)
 
-    # Flow
-    builder.add_edge(START, "classifier")
-    builder.add_conditional_edges(
-        "classifier",
-        route_by_intent,
-        {
-            "product_search": "product_search",
-            "product_recommendations": "product_recommendations",
-            "chat": "chat",
-        }
-    )
-    builder.add_edge("product_search", END)
-    builder.add_edge("product_recommendations", END)
-    builder.add_edge("chat", END)
+    # Direct flow: START -> semantic_search -> END
+    builder.add_edge(START, "semantic_search")
+    builder.add_edge("semantic_search", END)
 
     return builder.compile()

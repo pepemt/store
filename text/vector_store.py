@@ -285,7 +285,9 @@ class OracleVectorStore:
         
         results = []
         for term, article_ids_json, similarity in cursor.fetchall():
-            article_ids = json.loads(article_ids_json)
+            # Handle LOB objects from Oracle - read() them first
+            article_ids_data = article_ids_json.read() if hasattr(article_ids_json, 'read') else article_ids_json
+            article_ids = json.loads(article_ids_data)
             results.append((term, article_ids, float(similarity)))
         
         cursor.close()

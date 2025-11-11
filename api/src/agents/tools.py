@@ -375,36 +375,59 @@ async def semantic_product_search(
     # Step 3: Search for similar terms in Oracle 23ai
     vector_store = OracleVectorStore()
 
-    # Collect candidate article IDs from all similar terms
-    article_scores = {}  # article_id → cumulative score
+    # Build similarity map and collect article matches like Watson does
+    similarity_map = {}  # Maps similar_term → best similarity score
+    article_matched_terms = {}  # article_id → [list of (term, similarity)]
 
     for term in query_terms:
         # Get embedding for this term
         term_embedding = embedding_model.embed(term)
 
-        # Find similar terms
+        # Find similar terms (like Watson does)
         similar_terms = vector_store.find_similar_terms(
             query_embedding=term_embedding,
-            top_k=10,  # Top 10 similar terms per query term
-            min_similarity=similarity_threshold
+            top_k=10,  # Same as Watson
+            min_similarity=similarity_threshold  # Use threshold as-is
         )
 
         logger.info(f"Term '{term}' found {len(similar_terms)} similar terms")
 
-        # Aggregate article IDs with scores
-        for _, article_ids, similarity in similar_terms:
+        # Log top similar terms for debugging
+        for similar_term, _, sim_score in similar_terms[:5]:
+            logger.info(f"  Similar: '{similar_term}' (score: {sim_score:.3f})")
+
+        # Process similar terms: build similarity map and collect articles
+        for similar_term, article_ids, similarity in similar_terms:
+            # Update similarity map (keep max)
+            if similar_term not in similarity_map:
+                similarity_map[similar_term] = similarity
+            else:
+                similarity_map[similar_term] = max(similarity_map[similar_term], similarity)
+
+            # Collect article matches
             for article_id in article_ids:
-                if article_id not in article_scores:
-                    article_scores[article_id] = 0.0
-                article_scores[article_id] += similarity
+                if article_id not in article_matched_terms:
+                    article_matched_terms[article_id] = []
+                article_matched_terms[article_id].append((similar_term, similarity))
 
     vector_store.close()
+
+    # Calculate scores like Watson: average of matched term similarities
+    article_scores = {}
+    for article_id, matched_terms in article_matched_terms.items():
+        if matched_terms:
+            # Sum similarities and divide by count (like Watson)
+            score_sum = sum(sim for _, sim in matched_terms)
+            avg_score = score_sum / len(matched_terms)
+            article_scores[article_id] = avg_score
+
+    logger.info(f"Scored {len(article_scores)} articles")
 
     if not article_scores:
         logger.warning("No matching articles found via semantic search")
         return []
 
-    # Step 4: Rank articles by score and get top results
+    # Step 4: Rank articles by score and get top results (like Watson)
     ranked_article_ids = sorted(
         article_scores.items(),
         key=lambda x: x[1],
@@ -440,7 +463,7 @@ async def semantic_product_search(
                 "color": article.colour_group_name,
                 "price": price,
                 "stock": 100,  # Mock
-                "relevance_score": round(relevance_score, 3)  # Semantic relevance
+                "relevance_score": round(relevance_score, 3)
             })
 
         logger.info(f"Returning {len(products)} products from semantic search")
