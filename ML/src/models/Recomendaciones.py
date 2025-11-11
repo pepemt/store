@@ -10,6 +10,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple
+from urllib.parse import unquote
 
 import mlflow
 import numpy as np
@@ -131,6 +132,8 @@ def read_table(spark: SparkSession, table: str) -> DataFrame:
     postgres_url = _get_env("SPARK_DATABASE_URL", required=True)
     postgres_user = _get_env("SPARK_DATABASE_USER", required=True)
     postgres_password = _get_env("SPARK_DATABASE_PASSWORD", required=True)
+
+    postgres_password = unquote(postgres_password)
 
     reader = spark.read.format("jdbc")
     options = {
