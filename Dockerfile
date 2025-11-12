@@ -66,14 +66,12 @@ COPY text/ ./text/
 COPY ML/ ./ML/
 COPY initialization/ ./initialization/
 
-# Sincronizar dependencias usando uv (solo package api y sus dependencias)
+# Sincronizar dependencias usando uv
 # --frozen: usa uv.lock sin actualizar
-# --no-dev: no instala dependencias de desarrollo
-# --package api: instala solo api y sus dependencias workspace (database, images, text)
-# --no-install-workspace: no instala el workspace root que tiene dev dependencies
+# --no-dev: no instala dependency-groups dev
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
-RUN uv sync --frozen --no-dev --no-install-workspace --package api
+RUN uv sync --frozen --no-dev
 
 # ============================================================================
 # Stage 3: Final Runtime Image
@@ -88,6 +86,9 @@ RUN apt-get update && \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
+# Instalar uv en runtime para reinstalar paquetes locales
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 # Copiar el virtualenv completo con todas las dependencias
 COPY --from=python-builder /build/.venv /app/.venv
 
@@ -97,14 +98,32 @@ COPY --from=python-builder /build/database /app/database
 COPY --from=python-builder /build/images /app/images
 COPY --from=python-builder /build/text /app/text
 COPY --from=python-builder /build/pyproject.toml /app/pyproject.toml
+COPY --from=python-builder /build/uv.lock /app/uv.lock
 
 # Copiar el build del frontend al directorio static de la API
 COPY --from=frontend-builder /build/app/dist /app/api/src/static
+
+# Copiar Oracle wallet y configuración OCI (si existen)
+# Wallet de Oracle para conexión a base de datos
+COPY .data/adb-wallet /app/.data/adb-wallet
+
+# Configuración OCI
+# IMPORTANTE: Antes del build, copiar ~/.oci al directorio del proyecto:
+#   cp -r ~/.oci .
+# O en producción, montar como volume/secret
+RUN mkdir -p /root/.oci
+COPY .oci/ /root/.oci/
 
 # Configurar PATH para usar el virtualenv
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+
+# Variable de entorno para el wallet
+ENV ORACLE_WALLET_LOCATION=/app/.data/adb-wallet
+
+# Reinstalar los paquetes locales en sus ubicaciones finales
+RUN uv pip install --no-deps -e /app/api -e /app/database -e /app/images -e /app/text
 
 # Exponer puerto de la API
 EXPOSE 8000
@@ -113,5 +132,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-# Ejecutar la aplicación usando uvicorn directamente
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Ejecutar la aplicación usando python -m uvicorn
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
