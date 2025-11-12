@@ -103,23 +103,21 @@ COPY --from=python-builder /build/uv.lock /app/uv.lock
 # Copiar el build del frontend al directorio static de la API
 COPY --from=frontend-builder /build/app/dist /app/api/src/static
 
-# Copiar Oracle wallet y configuración OCI (si existen)
-# Wallet de Oracle para conexión a base de datos
-COPY .data/adb-wallet /app/.data/adb-wallet
+# Crear directorios para volúmenes de credenciales
+# Estas credenciales NO se copian en la imagen por seguridad
+# Se montan como volúmenes en runtime
+RUN mkdir -p /root/.oci /app/.data/adb-wallet
 
-# Configuración OCI
-# IMPORTANTE: Antes del build, copiar ~/.oci al directorio del proyecto:
-#   cp -r ~/.oci .
-# O en producción, montar como volume/secret
-RUN mkdir -p /root/.oci
-COPY .oci/ /root/.oci/
+# Copiar entrypoint script que ajusta configuraciones en runtime
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Configurar PATH para usar el virtualenv
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Variable de entorno para el wallet
+# Variable de entorno para el wallet (path donde se montará)
 ENV ORACLE_WALLET_LOCATION=/app/.data/adb-wallet
 
 # Reinstalar los paquetes locales en sus ubicaciones finales
@@ -131,6 +129,9 @@ EXPOSE 8000
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+# Usar entrypoint para configurar el ambiente antes de iniciar
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Ejecutar la aplicación usando python -m uvicorn
 CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
