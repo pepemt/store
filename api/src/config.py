@@ -24,9 +24,13 @@ def setup_logging():
         style='%'
     ))
 
+    # Configure ROOT logger so ALL child loggers inherit the handler
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(handler)
+
+    # Also return the 'api' logger for backward compatibility
     _logger = logging.getLogger(__name__.split('.')[0])
     _logger.setLevel(logging.INFO)
-    _logger.addHandler(handler)
-    _logger.propagate = False
 
     return _logger

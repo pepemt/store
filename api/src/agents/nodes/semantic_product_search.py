@@ -18,8 +18,13 @@ async def semantic_product_search_node(state: AgentState) -> dict:
     Search for products using semantic similarity.
     Uses vector embeddings to find products based on meaning, not just keywords.
     """
+    import time
+    start_time = time.time()
+
     user_message = state["messages"][-1].content
-    logger.info(f"Semantic search for: {user_message}")
+    logger.info("=" * 80)
+    logger.info(f"🔍 SEMANTIC SEARCH NODE START: '{user_message}'")
+    logger.info("=" * 80)
 
     try:
         # Step 1: Extract key product attributes from user query
@@ -49,17 +54,41 @@ Output: shirt blue cotton
 Now extract from: {user_message}
 Search terms:"""
 
-        refinement_response = await llm.ainvoke([{"role": "user", "content": refinement_prompt}])
-        refined_query = refinement_response.content.strip()
-
-        logger.info(f"Original query: {user_message}")
-        logger.info(f"Refined search terms: {refined_query}")
+        logger.info("⏱️  Step 1: Calling LLM to refine query...")
+        llm_start = time.time()
+        try:
+            import asyncio
+            # Apply 30 second timeout to LLM call
+            refinement_response = await asyncio.wait_for(
+                llm.ainvoke([{"role": "user", "content": refinement_prompt}]),
+                timeout=30.0
+            )
+            refined_query = refinement_response.content.strip()
+            llm_time = time.time() - llm_start
+            logger.info(f"✅ Query refined successfully in {llm_time:.2f}s")
+            logger.info(f"   Original query: {user_message}")
+            logger.info(f"   Refined search terms: {refined_query}")
+        except asyncio.TimeoutError:
+            llm_time = time.time() - llm_start
+            logger.error(f"❌ LLM refinement timeout after {llm_time:.2f}s")
+            # Fallback: use original query if refinement times out
+            refined_query = user_message
+            logger.info(f"   Fallback: using original query '{refined_query}'")
+        except Exception as llm_error:
+            llm_time = time.time() - llm_start
+            logger.error(f"❌ LLM refinement failed after {llm_time:.2f}s: {llm_error}")
+            # Fallback: use original query if refinement fails
+            refined_query = user_message
+            logger.info(f"   Fallback: using original query '{refined_query}'")
 
         # Step 2: Use semantic search with refined query
+        logger.info(f"⏱️  Step 2: Calling semantic_product_search with refined query...")
+        search_start = time.time()
         products = await semantic_product_search(query=refined_query, limit=10)
+        search_time = time.time() - search_start
 
         if products:
-            logger.info(f"Semantic search found {len(products)} products")
+            logger.info(f"✅ Semantic search found {len(products)} products in {search_time:.2f}s")
 
             # Format response with LLM
             products_text = "\n".join([
@@ -93,7 +122,11 @@ Keep it brief and suggest they try different terms."""
             error_response = await llm.ainvoke([{"role": "user", "content": error_prompt}])
             response_content = error_response.content
 
-        logger.info(f"Semantic search completed: {len(products)} products found")
+        total_time = time.time() - start_time
+        logger.info("=" * 80)
+        logger.info(f"✅ SEMANTIC SEARCH NODE COMPLETE in {total_time:.2f}s")
+        logger.info(f"   Products found: {len(products)}")
+        logger.info("=" * 80)
 
         return {
             "messages": [{"role": "assistant", "content": response_content}],
@@ -103,7 +136,11 @@ Keep it brief and suggest they try different terms."""
         }
 
     except Exception as e:
-        logger.error(f"Error in semantic product search: {e}")
+        total_time = time.time() - start_time
+        logger.error("=" * 80)
+        logger.error(f"❌ ERROR in semantic product search after {total_time:.2f}s")
+        logger.error(f"   Error: {e}", exc_info=True)
+        logger.error("=" * 80)
         error_response = "Disculpa, tuve un problema con la búsqueda semántica. ¿Podrías intentar de nuevo?"
         return {
             "messages": [{"role": "assistant", "content": error_response}],
