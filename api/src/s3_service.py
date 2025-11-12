@@ -5,6 +5,8 @@ import os
 import logging
 from typing import Optional
 from urllib.parse import urlparse
+from io import BytesIO
+import requests
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError, NoCredentialsError
@@ -289,7 +291,10 @@ class S3Service:
     @classmethod
     def upload_image(cls, image_key: str, image_data: bytes, content_type: str = "image/jpeg") -> bool:
         """
-        Sube una imagen a OCI Object Storage.
+        Sube una imagen a OCI Object Storage usando URL pre-firmada.
+
+        Oracle Object Storage requiere Content-Length explícito en las solicitudes PUT.
+        Boto3 no maneja esto correctamente, por lo que usamos URLs pre-firmadas + requests.
 
         Args:
             image_key: Clave de la imagen en S3 (ej: 'products/product1.jpg')
@@ -302,25 +307,47 @@ class S3Service:
         try:
             client = cls.get_client()
             bucket = cls.get_bucket_name()
-            
+
             # Verificar que el bucket existe
             if not cls.bucket_exists():
                 logger.error(f"Bucket '{bucket}' no existe")
                 return False
-            
-            # Subir la imagen
-            client.put_object(
-                Bucket=bucket,
-                Key=image_key,
-                Body=image_data,
-                ContentType=content_type
+
+            # Generar URL pre-firmada para PUT
+            presigned_url = client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': bucket,
+                    'Key': image_key,
+                    'ContentType': content_type
+                },
+                ExpiresIn=3600  # 1 hora de validez
             )
-            
-            logger.info(f"✅ Imagen subida exitosamente: {image_key}")
-            return True
-            
+
+            # Usar requests para subir con Content-Length explícito
+            headers = {
+                'Content-Type': content_type,
+                'Content-Length': str(len(image_data))
+            }
+
+            response = requests.put(
+                presigned_url,
+                data=image_data,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                return True
+            else:
+                logger.error(f"Error al subir imagen {image_key}: HTTP {response.status_code}")
+                logger.error(f"Respuesta: {response.text}")
+                return False
+
         except ClientError as e:
-            logger.error(f"Error al subir imagen {image_key}: {e}")
+            logger.error(f"Error al generar URL pre-firmada para {image_key}: {e}")
+            return False
+        except requests.RequestException as e:
+            logger.error(f"Error en la solicitud HTTP al subir imagen {image_key}: {e}")
             return False
         except Exception as e:
             logger.error(f"Error inesperado al subir imagen: {e}")
