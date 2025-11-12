@@ -71,10 +71,6 @@ ssh-keys/
 .data/
 tmp/
 
-# Módulos que NO necesitamos en producción (solo api, database, images, text)
-ML/
-initialization/
-
 # Frontend node_modules se manejará en el stage específico
 # pero lo ignoramos en el contexto raíz
 app/node_modules/

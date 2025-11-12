@@ -9,8 +9,30 @@ WORKDIR /build/app
 COPY app/package*.json ./
 RUN npm ci --prefer-offline --no-audit
 
-# Copiar código fuente y hacer build
+# Copiar código fuente del frontend
 COPY app/ ./
+
+# Sobrescribir vite.config.ts para usar output por defecto (dist/)
+RUN printf '%s\n' \
+    "import { defineConfig } from 'vite'" \
+    "import react from '@vitejs/plugin-react'" \
+    "import path from 'path'" \
+    "" \
+    "export default defineConfig({" \
+    "  plugins: [react()]," \
+    "  resolve: {" \
+    "    alias: {" \
+    "      '@': path.resolve(__dirname, './src')," \
+    "    }," \
+    "  }," \
+    "  build: {" \
+    "    outDir: 'dist'," \
+    "    emptyOutDir: true," \
+    "  }," \
+    "})" \
+    > vite.config.ts
+
+# Hacer build del frontend (output: ./dist/)
 RUN npm run build
 
 # ============================================================================
@@ -21,23 +43,37 @@ FROM python:3.12-slim AS python-builder
 # Instalar uv desde la imagen oficial
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Instalar herramientas de compilación necesarias para paquetes con extensiones C
+# (solo en build stage, no en runtime)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /build
 
 # Copiar archivos de configuración del workspace
 COPY pyproject.toml uv.lock ./
 
-# Copiar los módulos necesarios (api, database, images, text)
+# Copiar TODOS los módulos del workspace (necesarios para uv.lock)
 COPY api/ ./api/
 COPY database/ ./database/
 COPY images/ ./images/
 COPY text/ ./text/
+COPY ML/ ./ML/
+COPY initialization/ ./initialization/
 
-# Sincronizar dependencias usando uv (sin dev dependencies)
+# Sincronizar dependencias usando uv (solo package api y sus dependencias)
 # --frozen: usa uv.lock sin actualizar
 # --no-dev: no instala dependencias de desarrollo
+# --package api: instala solo api y sus dependencias workspace (database, images, text)
+# --no-install-workspace: no instala el workspace root que tiene dev dependencies
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-workspace --package api
 
 # ============================================================================
 # Stage 3: Final Runtime Image
@@ -63,7 +99,7 @@ COPY --from=python-builder /build/text /app/text
 COPY --from=python-builder /build/pyproject.toml /app/pyproject.toml
 
 # Copiar el build del frontend al directorio static de la API
-COPY --from=frontend-builder /build/app/api/src/static /app/api/src/static
+COPY --from=frontend-builder /build/app/dist /app/api/src/static
 
 # Configurar PATH para usar el virtualenv
 ENV PATH="/app/.venv/bin:$PATH"

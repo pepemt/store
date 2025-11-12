@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Truck, Shield, Star, ArrowRight } from 'lucide-react'
 import { productService } from '../services/productService'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
@@ -19,6 +19,7 @@ interface Product {
 }
 
 export default function Landing() {
+  const navigate = useNavigate()
   const [featured, setFeatured] = useState<Product[]>([])
   const [featuredLoading, setFeaturedLoading] = useState(true)
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -90,7 +91,7 @@ export default function Landing() {
           <div
             key={slide.id}
             className={`absolute inset-0 transition-opacity duration-1000 ${
-              index === currentSlide ? 'opacity-100' : 'opacity-0'
+              index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
           >
             <div className="h-full flex items-center justify-center text-white shadow-inner" style={{ backgroundColor: slide.bgColor }}>
@@ -98,11 +99,22 @@ export default function Landing() {
                 <h1 className="mb-4 text-5xl font-bold md:text-6xl drop-shadow-xl" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.3)' }}>{slide.title}</h1>
                 <p className="mb-8 text-lg md:text-xl max-w-2xl mx-auto drop-shadow-lg" style={{ textShadow: '1px 1px 4px rgba(0,0,0,0.3)' }}>{slide.subtitle}</p>
                 <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                  <Button asChild size="lg" variant="secondary" className="hover:bg-white font-semibold shadow-lg border-2 border-white" style={{ backgroundColor: 'white', color: '#6e348d' }}>
-                    <Link to={slide.primaryLink}>{slide.primaryButton}</Link>
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    onClick={() => navigate(slide.primaryLink)}
+                    className="hover:bg-white font-semibold shadow-lg border-2 border-white"
+                    style={{ backgroundColor: 'white', color: '#6e348d' }}
+                  >
+                    {slide.primaryButton}
                   </Button>
-                  <Button asChild size="lg" className="border-3 font-semibold shadow-lg backdrop-blur-sm hover:bg-white hover:text-[#6e348d] transition-all" style={{ borderWidth: '3px', borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.35)', color: 'white' }}>
-                    <Link to={slide.secondaryLink}>{slide.secondaryButton}</Link>
+                  <Button
+                    size="lg"
+                    onClick={() => navigate(slide.secondaryLink)}
+                    className="border-3 font-semibold shadow-lg backdrop-blur-sm hover:bg-white hover:text-[#6e348d] transition-all"
+                    style={{ borderWidth: '3px', borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.35)', color: 'white' }}
+                  >
+                    {slide.secondaryButton}
                   </Button>
                 </div>
               </div>
@@ -241,11 +253,14 @@ export default function Landing() {
           )}
 
           <div className="mt-12 text-center">
-            <Button asChild size="lg" className="text-white shadow-lg hover:shadow-xl transition-shadow" style={{ backgroundColor: '#6e348d' }}>
-              <Link to="/products" className="inline-flex items-center gap-2">
-                Ver todos los productos
-                <ArrowRight className="h-5 w-5" strokeWidth={2} />
-              </Link>
+            <Button
+              size="lg"
+              onClick={() => navigate('/products')}
+              className="inline-flex items-center gap-2 text-white shadow-lg hover:shadow-xl transition-shadow"
+              style={{ backgroundColor: '#6e348d' }}
+            >
+              Ver todos los productos
+              <ArrowRight className="h-5 w-5" strokeWidth={2} />
             </Button>
           </div>
         </div>

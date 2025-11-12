@@ -2,7 +2,7 @@
 name = "ml"
 version = "0.1.0"
 description = "Add your description here"
-requires-python = "<=3.12"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "mlflow>=3.5.1",
     "pyspark<=3.5.3",

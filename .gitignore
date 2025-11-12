@@ -61,3 +61,5 @@ ssh-keys/
 # Credentials file
 CREDENTIALS.md
 .cache
+
+static
