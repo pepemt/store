@@ -9,6 +9,7 @@ from .loader import (
     load_customers_from_csv,
     load_transactions_from_csv,
 )
+from .image_uploader import upload_images_to_s3
 
 load_dotenv()
 logger = setup_logging()
@@ -74,6 +75,30 @@ async def async_main():
         logger.info(f"Loaded {customers_count} customers.")
         logger.info(f"Loaded {transactions_count} transactions.")
         logger.info("Data loading completed successfully.")
+
+        # Upload product images to S3 (optional, won't block if fails)
+        try:
+            logger.info("\n" + "=" * 70)
+            logger.info("Starting product images upload to S3...")
+            logger.info("=" * 70)
+
+            images_dir = f"{data_dir}/images"
+            upload_stats = upload_images_to_s3(
+                base_image_folder=images_dir,
+                s3_prefix="products",
+                max_workers=20,  # Parallel uploads for faster processing
+                check_existing=True  # Skip already uploaded images
+            )
+
+            if upload_stats.total > 0:
+                logger.info(f"Images upload completed: {upload_stats.uploaded} uploaded, "
+                          f"{upload_stats.skipped} skipped, {upload_stats.failed} failed")
+            else:
+                logger.warning(f"No images found in {images_dir}")
+
+        except Exception as e:
+            logger.warning(f"Image upload failed (non-critical): {e}")
+            logger.info("Continuing with initialization...")
 
     except Exception as e:
         logger.error(f"Error during data loading: {e}", exc_info=True)
