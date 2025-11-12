@@ -1,18 +1,13 @@
-// In production (built), use relative paths since frontend is served from same server
-// In development, use explicit localhost URL for CORS
+// Always use relative paths to avoid mixed content issues
+// This works both in development and production, and with Tailscale Funnel
 const getBaseUrl = () => {
   // If VITE_API_BASE_URL is explicitly set, use it
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL
   }
 
-  // In production build, use relative path (same origin)
-  if (import.meta.env.PROD) {
-    return ''  // Relative URLs (e.g., /api/v1/products)
-  }
-
-  // In development, use localhost
-  return 'http://localhost:8000'
+  // Use relative URLs (works with same origin and proxies)
+  return ''  // Relative URLs (e.g., /api/v1/products)
 }
 
 const API_BASE_URL = getBaseUrl()

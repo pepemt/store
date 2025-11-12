@@ -43,11 +43,16 @@ const getWebSocketURL = (): string => {
     return import.meta.env.VITE_WS_URL
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const hostname = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'localhost'
-    : window.location.hostname
-  const port = import.meta.env.VITE_API_PORT || '8000'
-  return `${protocol}//${hostname}:${port}/api/v1/chat/ws/chat`
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+  // En localhost, usar puerto explícito; en producción/Tailscale, usar el mismo host:port que la página
+  if (isLocalhost) {
+    const port = import.meta.env.VITE_API_PORT || '8000'
+    return `${protocol}//localhost:${port}/api/v1/chat/ws/chat`
+  }
+
+  // En producción, usar window.location.host (incluye hostname y puerto si no es estándar)
+  return `${protocol}//${window.location.host}/api/v1/chat/ws/chat`
 }
 
 const WS_URL = getWebSocketURL()
