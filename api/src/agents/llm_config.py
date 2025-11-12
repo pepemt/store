@@ -21,8 +21,13 @@ rate_limiter = InMemoryRateLimiter(
 
 # Load OCI config from default profile
 # This uses the same authentication as Terraform
+# Usa OCI_CONFIG_FILE si está definido (para Docker), si no usa el default
 try:
-    config = oci.config.from_file(profile_name="DEFAULT")
+    config_file = os.getenv("OCI_CONFIG_FILE")
+    if config_file:
+        config = oci.config.from_file(file_location=config_file, profile_name="DEFAULT")
+    else:
+        config = oci.config.from_file(profile_name="DEFAULT")
 except Exception as e:
     raise ValueError(
         f"Failed to load OCI config: {e}\n"
