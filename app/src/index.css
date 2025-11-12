@@ -62,6 +62,19 @@ body {
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Primary color palette - Required for bg-primary-* classes */
+  --color-primary-50: #f5f0f8;
+  --color-primary-100: #ebe1f1;
+  --color-primary-200: #d7c3e3;
+  --color-primary-300: #c3a5d5;
+  --color-primary-400: #af87c7;
+  --color-primary-500: #9b69b9;
+  --color-primary-600: #6e348d;
+  --color-primary-700: #5a2a72;
+  --color-primary-800: #461f56;
+  --color-primary-900: #32153b;
+  --color-primary-950: #1e0c23;
 }
 
 

@@ -47,9 +47,9 @@ export default function Header() {
           </Button>
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-primary-600">
+          <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-black">
             <Package className="h-8 w-8" />
-            <span className="hidden sm:block">La Tiendita</span>
+            <span className="hidden sm:block text-black">La Tiendita</span>
           </Link>
 
           {/* Search Bar - Desktop */}
