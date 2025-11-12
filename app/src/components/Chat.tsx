@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
-import { MessageCircle, X, Maximize2, Minimize2, Trash2, Send, Bot, Menu } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { MessageCircle, X, Maximize2, Minimize2, Trash2, Send, Bot, Menu, ShoppingCart, Eye, Package } from 'lucide-react'
 import { useChat } from '../context/ChatContext'
-import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
+import { useCart } from '../context/CartContext'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import ConversationList from './ConversationList'
 
 export default function Chat() {
   const location = useLocation()
+  const navigate = useNavigate()
   const {
     isOpen,
     messages,
@@ -18,6 +19,7 @@ export default function Chat() {
     toggleChat,
     closeChat
   } = useChat()
+  const { add } = useCart()
 
   const [inputValue, setInputValue] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
@@ -66,6 +68,24 @@ export default function Chat() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const handleViewProduct = (productId: number) => {
+    navigate(`/product/${productId}`)
+    closeChat()
+  }
+
+  const handleAddToCart = async (product: any) => {
+    try {
+      await add({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        images: product.images || []
+      }, 1)
+    } catch (error) {
+      console.error('Error adding to cart:', error)
+    }
   }
 
   if (location.pathname === '/chat') {
@@ -219,48 +239,98 @@ export default function Chat() {
                         {/* Products */}
                         {message.products && message.products.length > 0 && (
                           <div className="mt-3 space-y-2">
-                            <div className="text-xs font-semibold">Productos encontrados:</div>
-                            {message.products.slice(0, 3).map((product: any, idx: number) => {
-                              const imageUrl = getProductImageUrl(product.id)
-                              const fallbackUrl = getFallbackImageUrl()
-                              return (
-                                <Card
-                                  key={product.id || idx}
-                                  className="p-3"
-                                >
-                                  <div className="flex gap-3">
-                                    {imageUrl && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <Package className="h-4 w-4" style={{ color: '#6e348d' }} />
+                              <span className="text-xs font-semibold text-gray-700">
+                                {message.products.length} producto{message.products.length > 1 ? 's' : ''} encontrado{message.products.length > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className={`grid ${isExpanded ? 'grid-cols-3 gap-2' : 'grid-cols-1 gap-3'}`}>
+                              {message.products.slice(0, isExpanded ? 9 : 3).map((product: any, idx: number) => {
+                                return (
+                                  <Card
+                                    key={product.id || idx}
+                                    className="overflow-hidden hover:shadow-lg transition-shadow duration-200 group"
+                                  >
+                                    {/* Imagen del producto */}
+                                    <div className="relative aspect-square w-full bg-gray-100">
                                       <img
-                                        src={imageUrl}
+                                        src={product.images?.[0]}
                                         alt={product.name}
-                                        className="h-16 w-16 rounded-md object-cover"
-                                        onError={(e) => {
-                                          const target = e.target as HTMLImageElement
-                                          if (target.src !== fallbackUrl) {
-                                            target.src = fallbackUrl
-                                          } else {
-                                            target.style.display = 'none'
-                                          }
-                                        }}
+                                        className="h-full w-full object-cover"
                                       />
-                                    )}
-                                    <div className="flex-1">
-                                      <h5 className="font-medium text-gray-900">
-                                        {product.name}
-                                      </h5>
-                                      <div className="mt-1 flex items-center gap-2 text-xs">
-                                        <span className="text-gray-600">
-                                          {product.category}
-                                        </span>
-                                        <span className="font-semibold" style={{ color: '#6e348d' }}>
-                                          ${product.price?.toFixed(2) || '0.00'}
-                                        </span>
+                                      {/* Badges */}
+                                      <div className={`absolute flex flex-col gap-1 ${isExpanded ? 'top-1 right-1' : 'top-2 right-2'}`}>
+                                        {product.stock && product.stock < 10 && product.stock > 0 && (
+                                          <span className={`bg-orange-500 text-white font-bold rounded-full shadow ${isExpanded ? 'text-[8px] px-1.5 py-0.5' : 'text-[10px] px-2 py-0.5'}`}>
+                                            ¡Últimos!
+                                          </span>
+                                        )}
+                                        {product.color && !isExpanded && (
+                                          <span className="bg-white/90 text-gray-700 text-[10px] font-medium px-2 py-0.5 rounded-full shadow backdrop-blur-sm">
+                                            {product.color}
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
-                                  </div>
-                                </Card>
-                              )
-                            })}
+
+                                    {/* Info del producto */}
+                                    <div className={`space-y-1.5 ${isExpanded ? 'p-2' : 'p-3'}`}>
+                                      {/* Nombre y categoría */}
+                                      <div>
+                                        <h5 className={`font-semibold text-gray-900 line-clamp-2 group-hover:text-[#6e348d] transition-colors ${isExpanded ? 'text-xs' : 'text-sm'}`}>
+                                          {product.name}
+                                        </h5>
+                                        <p className={`text-gray-500 mt-0.5 ${isExpanded ? 'text-[10px]' : 'text-xs'}`}>
+                                          {product.category || 'Sin categoría'}
+                                        </p>
+                                      </div>
+
+                                      {/* Precio */}
+                                      <div className="flex items-baseline gap-1">
+                                        <span className={`font-bold ${isExpanded ? 'text-base' : 'text-lg'}`} style={{ color: '#6e348d' }}>
+                                          ${product.price?.toFixed(2) || '0.00'}
+                                        </span>
+                                        {product.stock !== undefined && !isExpanded && (
+                                          <span className="text-xs text-gray-500">
+                                            {product.stock > 0 ? `• ${product.stock} disponibles` : '• Agotado'}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Botones de acción */}
+                                      <div className={`flex gap-1.5 ${isExpanded ? 'pt-0.5' : 'pt-1'}`}>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleViewProduct(product.id)}
+                                          className={`flex-1 border-[#6e348d] text-[#6e348d] hover:bg-[#6e348d] hover:text-white transition-colors ${isExpanded ? 'text-[10px] h-7 px-1' : 'text-xs h-8'}`}
+                                        >
+                                          <Eye className={isExpanded ? 'h-2.5 w-2.5 mr-0.5' : 'h-3 w-3 mr-1'} />
+                                          Ver
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleAddToCart(product)}
+                                          className={`flex-1 text-white hover:opacity-90 transition-opacity ${isExpanded ? 'text-[10px] h-7 px-1' : 'text-xs h-8'}`}
+                                          style={{ backgroundColor: '#6e348d' }}
+                                          disabled={product.stock === 0}
+                                        >
+                                          <ShoppingCart className={isExpanded ? 'h-2.5 w-2.5 mr-0.5' : 'h-3 w-3 mr-1'} />
+                                          Añadir
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </Card>
+                                )
+                              })}
+                            </div>
+                            {/* Mensaje si hay más productos */}
+                            {message.products.length > (isExpanded ? 9 : 3) && (
+                              <p className="text-xs text-gray-500 text-center pt-1">
+                                +{message.products.length - (isExpanded ? 9 : 3)} producto{message.products.length - (isExpanded ? 9 : 3) > 1 ? 's' : ''} más...
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>

@@ -73,16 +73,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       return null
     }
   })
-  const [isTyping, setIsTyping] = useState(false)
+  // Rastrear qué conversación está esperando respuesta (typing)
+  const [typingConversationId, setTypingConversationId] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
   const messages = conversations.find(c => c.id === activeConversationId)?.messages || []
 
+  // isTyping es true solo si la conversación ACTIVA está esperando respuesta
+  const isTyping = typingConversationId === activeConversationId
+
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const customerIdRef = useRef<string | null>(null)
+  const activeConversationIdRef = useRef<string | null>(activeConversationId)
+
+  // Sync ref with state
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId
+  }, [activeConversationId])
 
   useEffect(() => {
     try {
@@ -107,7 +117,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [activeConversationId])
 
-  const addMessage = (message: Partial<ChatMessage>): ChatMessage => {
+  const addMessage = (
+    message: Partial<ChatMessage>,
+    targetConversationId?: string | null  // Parámetro opcional para conversación específica
+  ): ChatMessage => {
     const newMessage: ChatMessage = {
       id: Date.now() + Math.random(),
       text: message.text || '',
@@ -117,13 +130,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       intent: message.intent || null
     }
 
+    let newConvId: string | null = null
+
     setConversations(prev => {
-      // Si hay conversación activa, agregar el mensaje a esa conversación
-      const activeConv = prev.find(c => c.id === activeConversationId)
+      // Si se especifica targetConversationId, usarlo; si no, usar el actual
+      const targetId = targetConversationId !== undefined
+        ? targetConversationId
+        : activeConversationIdRef.current
 
-      if (activeConv) {
+      // Buscar conversación objetivo
+      let targetConv = prev.find(c => c.id === targetId)
+
+      // Si no hay conversación objetivo, usar la más reciente
+      if (!targetConv && prev.length > 0) {
+        targetConv = prev[0]
+      }
+
+      // Si encontramos una conversación objetivo, agregar mensaje
+      if (targetConv) {
+        // NO actualizar activeConversationId cuando viene de WebSocket
+        // (solo cuando el usuario está agregando mensajes directamente)
+        if (targetConversationId === undefined && targetId !== targetConv.id) {
+          setActiveConversationId(targetConv.id)
+        }
+
         return prev.map(conv =>
-          conv.id === activeConversationId
+          conv.id === targetConv.id
             ? {
                 ...conv,
                 messages: [...conv.messages, newMessage],
@@ -133,26 +165,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         )
       }
 
-      // Si no hay conversación activa o no se encuentra, buscar la más reciente
-      // o crear una nueva solo si no hay ninguna
-      if (prev.length > 0) {
-        // Agregar a la conversación más reciente (la primera en el array)
-        const mostRecent = prev[0]
-        setActiveConversationId(mostRecent.id)
-
-        return prev.map((conv, index) =>
-          index === 0
-            ? {
-                ...conv,
-                messages: [...conv.messages, newMessage],
-                updatedAt: new Date().toISOString()
-              }
-            : conv
-        )
-      }
-
-      // Crear nueva conversación solo si no hay ninguna
-      const newConvId = `conv_${Date.now()}`
+      // No hay conversaciones, crear una nueva
+      newConvId = `conv_${Date.now()}`
       const title = message.sender === 'user' && message.text
         ? message.text.slice(0, 30)
         : 'Nueva conversación'
@@ -193,7 +207,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       ws.onopen = () => {
         console.log('WebSocket conectado')
         setIsConnected(true)
-        setIsTyping(false)
+        setTypingConversationId(null)  // Limpiar estado de typing al conectar
         reconnectAttemptsRef.current = 0
 
         if (reconnectTimeoutRef.current) {
@@ -216,28 +230,39 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
               break
 
             case 'typing':
-              setIsTyping(true)
+              // Marcar que ESA conversación específica está esperando respuesta
+              if (data.conversation_id) {
+                setTypingConversationId(data.conversation_id)
+              }
               break
 
             case 'message':
-              setIsTyping(false)
+              // Si la respuesta es para la conversación que está typing, limpiar
+              setTypingConversationId(prev =>
+                prev === data.conversation_id ? null : prev
+              )
+              // Usar conversation_id del backend para colocar mensaje en conversación correcta
               addMessage({
                 text: data.message,
                 sender: 'assistant',
                 products: data.products || null,
                 intent: data.intent || null
-              })
+              }, data.conversation_id)  // Backend devuelve el conversation_id original
               if (data.session_id) {
                 setSessionId(data.session_id)
               }
               break
 
             case 'error':
-              setIsTyping(false)
+              // Limpiar typing si el error es para esa conversación
+              setTypingConversationId(prev =>
+                prev === data.conversation_id ? null : prev
+              )
+              // También usar conversation_id para errores
               addMessage({
                 text: data.message || 'Lo siento, hubo un error. Intenta nuevamente.',
                 sender: 'assistant'
-              })
+              }, data.conversation_id)
               break
 
             default:
@@ -256,7 +281,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       ws.onclose = () => {
         console.log('WebSocket desconectado')
         setIsConnected(false)
-        setIsTyping(false)
+        setTypingConversationId(null)  // Limpiar estado de typing al desconectar
 
         if (reconnectAttemptsRef.current < 5) {
           reconnectAttemptsRef.current++
@@ -282,6 +307,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }
 
+  // Asegurar que siempre hay una conversación activa cuando el chat está abierto
+  useEffect(() => {
+    if (isOpen && conversations.length === 0) {
+      // Si no hay conversaciones, crear una nueva
+      const newConvId = `conv_${Date.now()}`
+      const newConversation: Conversation = {
+        id: newConvId,
+        title: 'Nueva conversación',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      setConversations([newConversation])
+      setActiveConversationId(newConvId)
+      activeConversationIdRef.current = newConvId
+    } else if (isOpen && !activeConversationId && conversations.length > 0) {
+      // Si hay conversaciones pero no hay activa, activar la más reciente
+      const mostRecentId = conversations[0].id
+      setActiveConversationId(mostRecentId)
+      activeConversationIdRef.current = mostRecentId
+    }
+  }, [isOpen, conversations, activeConversationId])
+
   useEffect(() => {
     if (isOpen && !wsRef.current) {
       connectWebSocket()
@@ -301,8 +349,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const sendMessage = async (text: string): Promise<void> => {
     if (!text.trim()) return
 
+    // Capturar conversación activa al momento de enviar
+    const conversationAtSendTime = activeConversationIdRef.current
+
     addMessage({ text: text.trim(), sender: 'user' })
-    setIsTyping(true)
+    // Marcar que ESTA conversación está esperando respuesta
+    setTypingConversationId(conversationAtSendTime)
 
     try {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -316,19 +368,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
       }
 
+      // Enviar mensaje CON el conversation_id para que el backend lo devuelva
       const messageData = {
-        message: text.trim()
+        message: text.trim(),
+        conversation_id: conversationAtSendTime  // Incluir conversación original
       }
 
       wsRef.current.send(JSON.stringify(messageData))
 
     } catch (error) {
       console.error('Error enviando mensaje:', error)
-      setIsTyping(false)
+      // Limpiar typing solo si es la conversación que falló
+      setTypingConversationId(prev =>
+        prev === conversationAtSendTime ? null : prev
+      )
       addMessage({
         text: 'Lo siento, hubo un error. Intenta nuevamente.',
         sender: 'assistant'
-      })
+      }, conversationAtSendTime)  // Agregar mensaje de error a la conversación correcta
     }
   }
 
@@ -353,18 +410,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
     setConversations(prev => [newConversation, ...prev])
     setActiveConversationId(newConvId)
+    // Actualizar ref inmediatamente para evitar race conditions
+    activeConversationIdRef.current = newConvId
   }
 
   const deleteConversation = (id: string): void => {
     setConversations(prev => prev.filter(conv => conv.id !== id))
     if (activeConversationId === id) {
       const remaining = conversations.filter(conv => conv.id !== id)
-      setActiveConversationId(remaining.length > 0 ? remaining[0].id : null)
+      const newActiveId = remaining.length > 0 ? remaining[0].id : null
+      setActiveConversationId(newActiveId)
+      activeConversationIdRef.current = newActiveId
     }
   }
 
   const switchConversation = (id: string): void => {
     setActiveConversationId(id)
+    activeConversationIdRef.current = id
   }
 
   const toggleChat = (): void => {

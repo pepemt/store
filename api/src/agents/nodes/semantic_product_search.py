@@ -22,22 +22,41 @@ async def semantic_product_search_node(state: AgentState) -> dict:
     logger.info(f"Semantic search for: {user_message}")
 
     try:
-        # Step 1: Translate query to English for search (if needed)
-        translation_prompt = f"""Translate the following product search query to English.
-If it's already in English, return it as-is.
-Only return the translated query, nothing else.
+        # Step 1: Extract key product attributes from user query
+        refinement_prompt = f"""Extract ONLY the product search attributes from this user query. Ignore context, intentions, and extra information.
 
-Query: {user_message}
-Translated query:"""
+User query: {user_message}
 
-        translation_response = await llm.ainvoke([{"role": "user", "content": translation_prompt}])
-        english_query = translation_response.content.strip()
+Extract:
+- Product type (e.g., "sandals", "necklace", "shirt")
+- Color (if mentioned)
+- Gender (if mentioned: "men", "women", "unisex")
+- Key characteristics (e.g., "leather", "cotton", "casual")
+
+Return ONLY the essential search terms separated by spaces, in English.
+Focus on what the product IS, not what it's FOR or how it will be used.
+
+Examples:
+Input: "Recomiéndame collares bonitos"
+Output: necklace
+
+Input: "Sandalias para andar en mi casa para descansar de hombre negras"
+Output: sandals men black
+
+Input: "Quiero una camisa azul de algodón"
+Output: shirt blue cotton
+
+Now extract from: {user_message}
+Search terms:"""
+
+        refinement_response = await llm.ainvoke([{"role": "user", "content": refinement_prompt}])
+        refined_query = refinement_response.content.strip()
 
         logger.info(f"Original query: {user_message}")
-        logger.info(f"English query for search: {english_query}")
+        logger.info(f"Refined search terms: {refined_query}")
 
-        # Step 2: Use semantic search with English query
-        products = await semantic_product_search(query=english_query, limit=10)
+        # Step 2: Use semantic search with refined query
+        products = await semantic_product_search(query=refined_query, limit=10)
 
         if products:
             logger.info(f"Semantic search found {len(products)} products")

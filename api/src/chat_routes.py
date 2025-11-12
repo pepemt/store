@@ -69,6 +69,7 @@ class ChatMessage(BaseModel):
     message: str
     session_id: Optional[str] = None
     customer_id: Optional[str] = None
+    conversation_id: Optional[str] = None  # Frontend conversation ID
 
 
 class ConnectionManager:
@@ -148,11 +149,14 @@ async def websocket_chat_endpoint(
             try:
                 message_data = json.loads(data)
                 user_message = message_data.get("message", "")
+                # Extraer conversation_id del cliente (puede ser None)
+                conversation_id = message_data.get("conversation_id")
 
                 if not user_message:
                     await manager.send_message(session_id, {
                         "type": "error",
-                        "message": "Mensaje vacío"
+                        "message": "Mensaje vacío",
+                        "conversation_id": conversation_id  # Devolver conversation_id original
                     })
                     continue
 
@@ -162,7 +166,8 @@ async def websocket_chat_endpoint(
                 # Send typing indicator
                 await manager.send_message(session_id, {
                     "type": "typing",
-                    "message": "Escribiendo..."
+                    "message": "Escribiendo...",
+                    "conversation_id": conversation_id  # Incluir conversation_id para typing
                 })
 
                 # Prepare agent state
@@ -210,7 +215,8 @@ async def websocket_chat_endpoint(
                     "type": "message",
                     "message": assistant_message,
                     "intent": intent,
-                    "session_id": session_id
+                    "session_id": session_id,
+                    "conversation_id": conversation_id  # Devolver conversation_id original
                 }
 
                 # Include products if found
@@ -224,13 +230,15 @@ async def websocket_chat_endpoint(
             except json.JSONDecodeError:
                 await manager.send_message(session_id, {
                     "type": "error",
-                    "message": "Formato de mensaje inválido"
+                    "message": "Formato de mensaje inválido",
+                    "conversation_id": None  # No podemos extraer conversation_id si el JSON es inválido
                 })
             except Exception as e:
                 logger.error(f"Error processing message: {e}", exc_info=True)
                 await manager.send_message(session_id, {
                     "type": "error",
-                    "message": "Error procesando el mensaje"
+                    "message": "Error procesando el mensaje",
+                    "conversation_id": conversation_id if 'conversation_id' in locals() else None
                 })
 
     except WebSocketDisconnect:
