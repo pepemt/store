@@ -67,9 +67,8 @@ terraform.tfstate*
 *.tfvars
 ssh-keys/
 
-# Data and temp files
-# .data completo (incluyendo wallet) - se monta como volumen en runtime
-.data/
+# Data and temp files (excepto wallet de Oracle)
+.data/raw/
 tmp/
 
 # Frontend node_modules se manejará en el stage específico
