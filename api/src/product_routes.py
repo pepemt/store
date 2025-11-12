@@ -74,24 +74,31 @@ def _fallback_image(article_id: int) -> str:
 
 
 def _candidate_image_keys(article_id: int) -> List[str]:
-    # Puedes ajustar patrones/formatos aquí
+    # Las imágenes en S3 tienen IDs con padding de 10 dígitos (ej: 0108775015.jpg)
+    padded_id = str(article_id).zfill(10)
     return [
-        f"products/{article_id}.jpg",
-        f"products/{article_id}.png",
-        f"products/{article_id}.webp",
+        f"products/{padded_id}.jpg",
+        f"products/{padded_id}.png",
+        f"products/{padded_id}.webp",
     ]
 
 
 def _build_images(article_id: int) -> List[str]:
     """
-    Intenta obtener una URL presignada de S3; si falla, usa fallback.
+    Genera URLs de imágenes usando el proxy del backend.
+    El proxy sirve imágenes desde S3 a través de /api/v1/images/{key}
     """
     try:
-        # Si S3 no está inicializado, S3Service.get_image_url devolverá None
+        # Obtener la URL base del backend desde variables de entorno
+        import os
+        backend_url = os.getenv("FASTAPI_PUBLIC_URL")
+
+        # Verificar si la imagen existe en S3
         for key in _candidate_image_keys(article_id):
-            url = S3Service.get_image_url(key, expires_in=3600)
-            if url:
-                return [url]
+            if S3Service.image_exists(key):
+                # Usar proxy del backend en lugar de URLs presignadas
+                # Esto evita problemas de permisos y expiración
+                return [f"{backend_url}/api/v1/images/{key}"]
     except Exception:
         pass
     return [_fallback_image(article_id)]

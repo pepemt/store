@@ -95,7 +95,7 @@ export default function ProductDetails() {
       <div className="container mx-auto px-4 py-8">
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-8">
-            <img src={image} alt={name} className="w-full rounded-lg object-contain" />
+            <img src={image} alt={name} loading="eager" className="w-full rounded-lg object-contain" />
           </div>
 
           <div>

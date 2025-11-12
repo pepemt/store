@@ -139,6 +139,7 @@ export default function ProductList() {
                         <img
                           src={image}
                           alt={name}
+                          loading="lazy"
                           className="h-full w-full object-cover transition-transform group-hover:scale-110"
                         />
                         {product.rating && (

@@ -8,6 +8,12 @@ from pydantic import BaseModel
 import logging
 from io import BytesIO
 
+try:
+    from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
 from .s3_service import S3Service
 
 logger = logging.getLogger(__name__)
@@ -249,17 +255,24 @@ async def get_image_url(
 @router.get("/{image_key:path}")
 async def get_image(
     image_key: str,
-    download: bool = Query(False, description="Forzar descarga en lugar de mostrar")
+    download: bool = Query(False, description="Forzar descarga en lugar de mostrar"),
+    w: Optional[int] = Query(None, ge=10, le=4000, description="Ancho deseado (requiere Pillow)"),
+    h: Optional[int] = Query(None, ge=10, le=4000, description="Alto deseado (requiere Pillow)"),
+    quality: int = Query(85, ge=1, le=100, description="Calidad de compresión JPEG (1-100)")
 ):
     """
     Obtiene una imagen directamente desde S3 y la sirve como respuesta.
-    
+    Optimizado con cache headers y redimensionamiento on-the-fly.
+
     Args:
         image_key: Clave de la imagen en S3 (ej: 'products/product1.jpg')
         download: Si es True, fuerza la descarga del archivo
-    
+        w: Ancho deseado para redimensionar (opcional, requiere Pillow)
+        h: Alto deseado para redimensionar (opcional, requiere Pillow)
+        quality: Calidad de compresión para JPEG (1-100, default: 85)
+
     Returns:
-        Imagen como StreamingResponse
+        Imagen como StreamingResponse con headers de caché
     """
     try:
         # Verificar que el bucket existe
@@ -269,16 +282,16 @@ async def get_image(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
             )
-        
+
         # Obtener imagen desde S3
         image_data = S3Service.get_image_object(image_key)
-        
+
         if not image_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Imagen no encontrada: {image_key}"
             )
-        
+
         # Determinar content type basado en la extensión
         content_type = "image/jpeg"  # Default
         if image_key.lower().endswith('.png'):
@@ -287,19 +300,66 @@ async def get_image(
             content_type = "image/gif"
         elif image_key.lower().endswith('.webp'):
             content_type = "image/webp"
-        
-        # Preparar headers
-        headers = {}
+
+        # Redimensionar si se solicita y PIL está disponible
+        if (w or h) and HAS_PIL:
+            try:
+                img = Image.open(BytesIO(image_data))
+                original_width, original_height = img.size
+
+                # Calcular dimensiones manteniendo aspect ratio
+                if w and h:
+                    # Ambos especificados: redimensionar a tamaño exacto (puede distorsionar)
+                    new_size = (w, h)
+                elif w:
+                    # Solo ancho: calcular alto manteniendo ratio
+                    ratio = w / original_width
+                    new_size = (w, int(original_height * ratio))
+                else:
+                    # Solo alto: calcular ancho manteniendo ratio
+                    ratio = h / original_height
+                    new_size = (int(original_width * ratio), h)
+
+                # Redimensionar usando LANCZOS para mejor calidad
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+                # Convertir a bytes
+                output = BytesIO()
+                if content_type == "image/png":
+                    img.save(output, format="PNG", optimize=True)
+                elif content_type == "image/webp":
+                    img.save(output, format="WEBP", quality=quality)
+                else:
+                    # JPEG por defecto
+                    if img.mode in ("RGBA", "LA", "P"):
+                        img = img.convert("RGB")
+                    img.save(output, format="JPEG", quality=quality, optimize=True)
+
+                image_data = output.getvalue()
+                logger.info(f"Imagen redimensionada: {image_key} a {new_size}")
+
+            except Exception as e:
+                logger.warning(f"Error al redimensionar imagen, sirviendo original: {e}")
+                # Si falla el redimensionamiento, servir imagen original
+
+        # Preparar headers optimizados
+        headers = {
+            # Cache por 1 año (las imágenes de productos no cambian frecuentemente)
+            "Cache-Control": "public, max-age=31536000, immutable",
+            # ETag para validación de caché (incluir dimensiones si se redimensionó)
+            "ETag": f'"{image_key}-{len(image_data)}-{w or ""}-{h or ""}"',
+        }
+
         if download:
             filename = image_key.split('/')[-1]
             headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-        
+
         return StreamingResponse(
             BytesIO(image_data),
             media_type=content_type,
             headers=headers
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
