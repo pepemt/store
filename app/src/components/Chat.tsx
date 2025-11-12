@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { MessageCircle, X, Maximize2, Minimize2, ExternalLink, Trash2, Send, Bot } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { MessageCircle, X, Maximize2, Minimize2, Trash2, Send, Bot, Menu } from 'lucide-react'
 import { useChat } from '../context/ChatContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
 import { Card } from './ui/card'
+import ConversationList from './ConversationList'
 
 export default function Chat() {
-  const navigate = useNavigate()
   const location = useLocation()
   const {
     isOpen,
@@ -22,6 +21,7 @@ export default function Chat() {
 
   const [inputValue, setInputValue] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [showConversations, setShowConversations] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -95,62 +95,71 @@ export default function Chat() {
       {/* Chat Window */}
       {isOpen && (
         <Card
-          className={`fixed bottom-6 right-6 z-50 flex flex-col overflow-hidden shadow-2xl transition-all ${
+          className={`fixed z-50 flex overflow-hidden shadow-2xl transition-all ${
             isExpanded
-              ? 'h-[calc(100vh-3rem)] w-[calc(100vw-3rem)]'
-              : 'h-[600px] w-[400px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)]'
-          }`}
+              ? 'inset-6 w-auto h-auto'
+              : 'bottom-6 right-6 h-[600px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)]'
+          } ${!isExpanded && (showConversations ? 'w-[700px]' : 'w-[400px]')}`}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b p-4 text-white shadow-md" style={{ backgroundColor: '#6e348d' }}>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 shadow-sm">
-                <Bot className="h-6 w-6" strokeWidth={2} />
+          {/* Conversation List Sidebar */}
+          {showConversations && (
+            <div className="w-[280px] flex-shrink-0">
+              <ConversationList />
+            </div>
+          )}
+
+          {/* Main Chat Area */}
+          <div className="flex flex-1 flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b px-4 py-4 text-white shadow-md" style={{ backgroundColor: '#6e348d', height: '81px' }}>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowConversations(!showConversations)}
+                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors flex-shrink-0"
+                  title="Historial de conversaciones"
+                >
+                  <Menu className="h-5 w-5" strokeWidth={2} />
+                </Button>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 shadow-sm flex-shrink-0">
+                  <Bot className="h-6 w-6" strokeWidth={2} />
+                </div>
+                <div className="flex-shrink-0">
+                  <h3 className="font-semibold text-base whitespace-nowrap">Asistente La Tiendita</h3>
+                  <p className="text-xs text-white/90 whitespace-nowrap">En línea</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold">Asistente La Tiendita</h3>
-                <p className="text-xs text-white/90">En línea</p>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors"
+                  title={isExpanded ? 'Modo ventana' : 'Expandir'}
+                >
+                  {isExpanded ? <Minimize2 className="h-5 w-5" strokeWidth={2} /> : <Maximize2 className="h-5 w-5" strokeWidth={2} />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearMessages}
+                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors"
+                  title="Limpiar conversación"
+                >
+                  <Trash2 className="h-5 w-5" strokeWidth={2} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={closeChat}
+                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors"
+                  title="Cerrar chat"
+                >
+                  <X className="h-5 w-5" strokeWidth={2} />
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="h-8 w-8 text-white hover:bg-white/20 hover:text-white transition-colors"
-                title={isExpanded ? 'Modo ventana' : 'Expandir'}
-              >
-                {isExpanded ? <Minimize2 className="h-4 w-4" strokeWidth={2} /> : <Maximize2 className="h-4 w-4" strokeWidth={2} />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/chat')}
-                className="h-8 w-8 text-white hover:bg-white/20 hover:text-white transition-colors"
-                title="Abrir en página completa"
-              >
-                <ExternalLink className="h-4 w-4" strokeWidth={2} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={clearMessages}
-                className="h-8 w-8 text-white hover:bg-white/20 hover:text-white transition-colors"
-                title="Limpiar conversación"
-              >
-                <Trash2 className="h-4 w-4" strokeWidth={2} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeChat}
-                className="h-8 w-8 text-white hover:bg-white/20 hover:text-white transition-colors"
-                title="Cerrar chat"
-              >
-                <X className="h-4 w-4" strokeWidth={2} />
-              </Button>
-            </div>
-          </div>
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
@@ -314,6 +323,7 @@ export default function Chat() {
               </Button>
             </div>
           </form>
+          </div>
         </Card>
       )}
     </>

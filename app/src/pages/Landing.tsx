@@ -98,10 +98,10 @@ export default function Landing() {
                 <h1 className="mb-4 text-5xl font-bold md:text-6xl drop-shadow-xl" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.3)' }}>{slide.title}</h1>
                 <p className="mb-8 text-lg md:text-xl max-w-2xl mx-auto drop-shadow-lg" style={{ textShadow: '1px 1px 4px rgba(0,0,0,0.3)' }}>{slide.subtitle}</p>
                 <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                  <Button asChild size="lg" variant="secondary" className="hover:bg-white/90 font-semibold shadow-lg" style={{ color: '#6e348d' }}>
+                  <Button asChild size="lg" variant="secondary" className="hover:bg-white font-semibold shadow-lg border-2 border-white" style={{ backgroundColor: 'white', color: '#6e348d' }}>
                     <Link to={slide.primaryLink}>{slide.primaryButton}</Link>
                   </Button>
-                  <Button asChild size="lg" className="border-2 font-semibold shadow-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all" style={{ borderColor: 'white', color: 'white' }}>
+                  <Button asChild size="lg" className="border-3 font-semibold shadow-lg backdrop-blur-sm hover:bg-white hover:text-[#6e348d] transition-all" style={{ borderWidth: '3px', borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.35)', color: 'white' }}>
                     <Link to={slide.secondaryLink}>{slide.secondaryButton}</Link>
                   </Button>
                 </div>

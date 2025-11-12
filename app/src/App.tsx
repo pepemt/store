@@ -17,7 +17,6 @@ import Cart from './pages/Cart'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Checkout from './pages/Checkout'
-import ChatPage from './pages/ChatPage'
 import SignupSuccess from './pages/SignupSuccess'
 
 function App() {
@@ -36,7 +35,6 @@ function App() {
                   <Route path="/signup-success" element={<SignupSuccess />} />
                   <Route path="/products" element={<ProductList />} />
                   <Route path="/product/:id" element={<ProductDetails />} />
-                  <Route path="/chat" element={<ChatPage />} />
                   <Route
                     path="/cart"
                     element={

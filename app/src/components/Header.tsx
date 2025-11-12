@@ -26,11 +26,8 @@ export default function Header() {
       {/* Top Bar */}
       <div style={{ backgroundColor: '#6e348d' }} className="text-white shadow-md">
         <div className="container mx-auto px-4 py-2.5">
-          <div className="flex items-center justify-between text-sm font-medium">
+          <div className="flex items-center justify-center text-sm font-medium">
             <p className="hidden sm:block">Envío gratis en compras mayores a $500</p>
-            <div className="ml-auto flex items-center gap-4">
-              <Link to="/chat" className="hover:underline transition-opacity hover:opacity-80">Ayuda</Link>
-            </div>
           </div>
         </div>
       </div>

@@ -9,18 +9,31 @@ interface ChatMessage {
   intent?: string | null
 }
 
+interface Conversation {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
 interface ChatContextType {
   isOpen: boolean
   messages: ChatMessage[]
   isTyping: boolean
   isConnected: boolean
   sessionId: string | null
+  conversations: Conversation[]
+  activeConversationId: string | null
   addMessage: (message: Partial<ChatMessage>) => ChatMessage
   sendMessage: (text: string) => Promise<void>
   clearMessages: () => void
   toggleChat: () => void
   closeChat: () => void
   openChat: () => void
+  createNewConversation: () => void
+  deleteConversation: (id: string) => void
+  switchConversation: (id: string) => void
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined)
@@ -45,16 +58,26 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem('tiendita_chat_messages') || '[]')
+      return JSON.parse(localStorage.getItem('tiendita_conversations') || '[]')
     } catch {
       return []
+    }
+  })
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('tiendita_active_conversation_id')
+      return saved || null
+    } catch {
+      return null
     }
   })
   const [isTyping, setIsTyping] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+
+  const messages = conversations.find(c => c.id === activeConversationId)?.messages || []
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -73,8 +96,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('tiendita_chat_messages', JSON.stringify(messages))
-  }, [messages])
+    localStorage.setItem('tiendita_conversations', JSON.stringify(conversations))
+  }, [conversations])
+
+  useEffect(() => {
+    if (activeConversationId) {
+      localStorage.setItem('tiendita_active_conversation_id', activeConversationId)
+    } else {
+      localStorage.removeItem('tiendita_active_conversation_id')
+    }
+  }, [activeConversationId])
 
   const addMessage = (message: Partial<ChatMessage>): ChatMessage => {
     const newMessage: ChatMessage = {
@@ -85,7 +116,59 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       products: message.products || null,
       intent: message.intent || null
     }
-    setMessages(prev => [...prev, newMessage])
+
+    setConversations(prev => {
+      // Si hay conversación activa, agregar el mensaje a esa conversación
+      const activeConv = prev.find(c => c.id === activeConversationId)
+
+      if (activeConv) {
+        return prev.map(conv =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: [...conv.messages, newMessage],
+                updatedAt: new Date().toISOString()
+              }
+            : conv
+        )
+      }
+
+      // Si no hay conversación activa o no se encuentra, buscar la más reciente
+      // o crear una nueva solo si no hay ninguna
+      if (prev.length > 0) {
+        // Agregar a la conversación más reciente (la primera en el array)
+        const mostRecent = prev[0]
+        setActiveConversationId(mostRecent.id)
+
+        return prev.map((conv, index) =>
+          index === 0
+            ? {
+                ...conv,
+                messages: [...conv.messages, newMessage],
+                updatedAt: new Date().toISOString()
+              }
+            : conv
+        )
+      }
+
+      // Crear nueva conversación solo si no hay ninguna
+      const newConvId = `conv_${Date.now()}`
+      const title = message.sender === 'user' && message.text
+        ? message.text.slice(0, 30)
+        : 'Nueva conversación'
+
+      const newConversation: Conversation = {
+        id: newConvId,
+        title: title,
+        messages: [newMessage],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      setActiveConversationId(newConvId)
+      return [newConversation]
+    })
+
     return newMessage
   }
 
@@ -129,15 +212,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
               if (data.session_id) {
                 setSessionId(data.session_id)
               }
-              if (data.history && Array.isArray(data.history)) {
-                const historyMessages = data.history.map((msg: any) => ({
-                  id: Date.now() + Math.random() + Math.random(),
-                  text: msg.content,
-                  sender: msg.role === 'user' ? 'user' : 'assistant',
-                  timestamp: new Date().toISOString()
-                }))
-                setMessages(historyMessages)
-              }
+              // El historial se carga desde localStorage, no del WebSocket
               break
 
             case 'typing':
@@ -258,7 +333,38 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }
 
   const clearMessages = (): void => {
-    setMessages([])
+    if (activeConversationId) {
+      setConversations(prev => prev.map(conv =>
+        conv.id === activeConversationId
+          ? { ...conv, messages: [], updatedAt: new Date().toISOString() }
+          : conv
+      ))
+    }
+  }
+
+  const createNewConversation = (): void => {
+    const newConvId = `conv_${Date.now()}`
+    const newConversation: Conversation = {
+      id: newConvId,
+      title: 'Nueva conversación',
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    setConversations(prev => [newConversation, ...prev])
+    setActiveConversationId(newConvId)
+  }
+
+  const deleteConversation = (id: string): void => {
+    setConversations(prev => prev.filter(conv => conv.id !== id))
+    if (activeConversationId === id) {
+      const remaining = conversations.filter(conv => conv.id !== id)
+      setActiveConversationId(remaining.length > 0 ? remaining[0].id : null)
+    }
+  }
+
+  const switchConversation = (id: string): void => {
+    setActiveConversationId(id)
   }
 
   const toggleChat = (): void => {
@@ -280,12 +386,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       isTyping,
       isConnected,
       sessionId,
+      conversations,
+      activeConversationId,
       addMessage,
       sendMessage,
       clearMessages,
       toggleChat,
       closeChat,
-      openChat
+      openChat,
+      createNewConversation,
+      deleteConversation,
+      switchConversation
     }}>
       {children}
     </ChatContext.Provider>
