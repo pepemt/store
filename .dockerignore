@@ -1,35 +1,37 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
+# Virtual environments
 .venv/
 venv/
 ENV/
 env/
 
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -38,21 +40,46 @@ env/
 ehthumbs.db
 Thumbs.db
 
-.git/
-.gitignore
-
+# Docker
 Dockerfile
 .dockerignore
+docker-compose*.yaml
 
+# Environment files
 .env
 .env.local
 .env.*.local
+.env.sample
 
+# Logs
 *.log
+logs/
 
-.pytest_cache/
-.coverage
-htmlcov/
-
+# Documentation
 README.md
 docs/
+
+# Terraform (no necesario en producción)
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate*
+*.tf
+*.tfvars
+ssh-keys/
+
+# Data and temp files
+.data/
+tmp/
+
+# Módulos que NO necesitamos en producción (solo api, database, images, text)
+ML/
+initialization/
+
+# Frontend node_modules se manejará en el stage específico
+# pero lo ignoramos en el contexto raíz
+app/node_modules/
+app/dist/
+app/.vite/
+
+# Build artifacts de la API que no deben copiarse
+api/src/static/

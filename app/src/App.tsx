@@ -7,6 +7,7 @@ import Header from './components/Header'
 import Footer from './components/Footer'
 import Chat from './components/Chat'
 import ProtectedRoute from './components/ProtectedRoute'
+import { Toaster } from './components/ui/sonner'
 
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -57,6 +58,7 @@ function App() {
               </main>
               <Footer />
               <Chat />
+              <Toaster />
             </div>
           </BrowserRouter>
         </ChatProvider>

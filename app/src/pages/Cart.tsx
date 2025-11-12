@@ -161,18 +161,17 @@ export default function Cart() {
                 <span className="text-primary-600">${total.toFixed(2)}</span>
               </div>
 
-              <button
-                onClick={() => navigate('/checkout')}
-                disabled={mutating}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              <Link
+                to="/checkout"
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-700"
               >
                 Proceder al Pago
                 <ArrowRight className="h-5 w-5" />
-              </button>
+              </Link>
 
               <Link
                 to="/products"
-                className="block w-full rounded-lg border border-gray-300 bg-white px-6 py-3 text-center font-semibold text-gray-700 hover:bg-gray-50"
+                className="block w-full rounded-lg border border-gray-300 bg-white px-6 py-3 text-center font-semibold text-gray-700 transition-colors hover:bg-gray-50"
               >
                 Seguir Comprando
               </Link>

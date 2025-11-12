@@ -1,6 +1,9 @@
 import type { Config } from 'tailwindcss'
 
 export default {
+  // Use 'class' strategy instead of 'media' to prevent automatic dark mode detection
+  // This ensures the theme doesn't change based on browser/OS preferences
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",

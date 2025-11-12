@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MessageCircle, X, Maximize2, Minimize2, Trash2, Send, Bot, Menu, ShoppingCart, Eye, Package } from 'lucide-react'
+import { toast } from 'sonner'
 import { useChat } from '../context/ChatContext'
 import { useCart } from '../context/CartContext'
 import { Button } from './ui/button'
@@ -83,8 +84,16 @@ export default function Chat() {
         price: product.price,
         images: product.images || []
       }, 1)
-    } catch (error) {
+      toast.success('¡Producto agregado al carrito!', {
+        description: `${product.name}`,
+        duration: 3000,
+      })
+    } catch (error: any) {
       console.error('Error adding to cart:', error)
+      toast.error('Error al agregar al carrito', {
+        description: error?.message || 'Por favor intenta nuevamente',
+        duration: 4000,
+      })
     }
   }
 

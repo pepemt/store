@@ -1,7 +1,10 @@
 import os
 import uvicorn
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 
 from .config import setup_logging
@@ -35,6 +38,45 @@ app.include_router(cart_router,    prefix="/api/v1/cart",     tags=["cart"])
 app.include_router(product_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(chat_router,    prefix="/api/v1/chat",     tags=["chat"])
 app.include_router(image_router,   prefix="/api/v1/images",   tags=["images"])
+
+# Servir archivos estáticos del frontend (si existen)
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists() and STATIC_DIR.is_dir():
+    # Montar directorio completo de assets (Vite genera /assets por defecto)
+    assets_dir = STATIC_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="static-assets")
+
+    # También montar otros archivos estáticos en la raíz si existen (favicon, etc.)
+    # Intentar servir archivos estáticos directamente desde static/
+    try:
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static-files")
+    except Exception:
+        pass
+
+    # Catch-all para servir index.html en rutas SPA (excepto /api/*)
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Sirve el frontend SPA para todas las rutas que no sean de API."""
+        # Si la ruta empieza con /api, dejar que FastAPI maneje el 404
+        if full_path.startswith("api/"):
+            # Este caso no debería ocurrir porque los routers tienen prioridad
+            return {"error": "API endpoint not found"}
+
+        # Si es un archivo estático que existe, servirlo directamente
+        static_file = STATIC_DIR / full_path
+        if static_file.exists() and static_file.is_file():
+            return FileResponse(str(static_file))
+
+        # Para cualquier otra ruta, servir index.html (para react-router)
+        index_file = STATIC_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+
+        # Si no existe el index.html, retornar un mensaje
+        return {"message": "Frontend not built. Run 'npm run build' in the app directory."}
+else:
+    logger.warning("⚠️  Directorio static no encontrado. El frontend no estará disponible.")
 
 
 def get_database_url() -> str:

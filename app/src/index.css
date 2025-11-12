@@ -3,7 +3,9 @@
 
 @plugin 'tailwindcss-animate';
 
+/* Force light color scheme - prevents browser dark mode from affecting the app */
 :root {
+  color-scheme: light only;
   --primary: #6e348d;
   --primary-light: #9b69b9;
   --primary-dark: #5a2a72;
@@ -40,10 +42,15 @@
   --sidebar-ring: #6e348d;
 }
 
+html {
+  color-scheme: light only;
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
-  background-color: #ffffff;
-  color: #1f2937;
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  color-scheme: light only;
 }
 
 * {

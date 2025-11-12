@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Star, ShoppingCart, Package, Shield, Truck, Loader, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
 import { productService } from '../services/productService'
 import { useCart } from '../context/CartContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
@@ -54,9 +55,15 @@ export default function ProductDetails() {
     try {
       setAdding(true)
       await addToCart(product, quantity)
-      alert('Producto agregado al carrito')
-    } catch (err) {
-      alert('Error al agregar al carrito')
+      toast.success('¡Producto agregado al carrito!', {
+        description: `${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} de ${name}`,
+        duration: 3000,
+      })
+    } catch (err: any) {
+      toast.error('Error al agregar al carrito', {
+        description: err?.message || 'Por favor intenta nuevamente',
+        duration: 4000,
+      })
     } finally {
       setAdding(false)
     }
@@ -65,7 +72,7 @@ export default function ProductDetails() {
   if (loading) {
     return (
       <div className="flex min-h-[calc(100vh-200px)] items-center justify-center">
-        <Loader className="h-8 w-8 animate-spin text-primary-600" />
+        <Loader className="h-8 w-8 animate-spin" style={{ color: '#6e348d' }} />
       </div>
     )
   }
@@ -74,11 +81,14 @@ export default function ProductDetails() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-600" />
-          <h2 className="mb-2 text-xl font-bold text-red-900">{error}</h2>
+          <AlertCircle className="mx-auto mb-4 h-12 w-12" style={{ color: '#dc2626' }} />
+          <h2 className="mb-2 text-xl font-bold" style={{ color: '#7f1d1d' }}>{error}</h2>
           <button
             onClick={() => navigate('/products')}
-            className="mt-4 rounded-lg bg-primary-600 px-6 py-2 font-semibold text-white hover:bg-primary-700"
+            className="mt-4 rounded-lg px-6 py-2 font-semibold transition-colors"
+            style={{ backgroundColor: '#6e348d', color: 'white' }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#5a2a72')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#6e348d')}
           >
             Ver todos los productos
           </button>
@@ -100,10 +110,10 @@ export default function ProductDetails() {
 
           <div>
             {product.category && (
-              <p className="mb-2 text-sm font-medium text-primary-600">{product.category}</p>
+              <p className="mb-2 text-sm font-medium" style={{ color: '#6e348d' }}>{product.category}</p>
             )}
 
-            <h1 className="mb-4 text-3xl font-bold text-gray-900">{name}</h1>
+            <h1 className="mb-4 text-3xl font-bold" style={{ color: '#111827' }}>{name}</h1>
 
             {product.rating && (
               <div className="mb-4 flex items-center gap-2">
@@ -119,32 +129,34 @@ export default function ProductDetails() {
                     />
                   ))}
                 </div>
-                <span className="text-sm text-gray-600">({product.rating})</span>
+                <span className="text-sm" style={{ color: '#4b5563' }}>({product.rating})</span>
               </div>
             )}
 
             <div className="mb-6 flex items-baseline gap-3">
-              <span className="text-4xl font-bold text-primary-600">${product.price.toFixed(2)}</span>
+              <span className="text-4xl font-bold" style={{ color: '#6e348d' }}>${product.price.toFixed(2)}</span>
               {typeof product.stock !== 'undefined' && (
-                <span className="text-sm text-gray-500">Stock: {product.stock} unidades</span>
+                <span className="text-sm" style={{ color: '#6b7280' }}>Stock: {product.stock} unidades</span>
               )}
             </div>
 
-            <p className="mb-6 text-gray-700">{product.description}</p>
+            <p className="mb-6" style={{ color: '#374151' }}>{product.description}</p>
 
             <div className="mb-6">
-              <label className="mb-2 block text-sm font-medium text-gray-700">Cantidad:</label>
+              <label className="mb-2 block text-sm font-medium" style={{ color: '#374151' }}>Cantidad:</label>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50"
+                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold hover:bg-gray-50"
+                  style={{ color: '#374151' }}
                 >
                   -
                 </button>
-                <span className="text-xl font-semibold text-gray-900">{quantity}</span>
+                <span className="text-xl font-semibold" style={{ color: '#111827' }}>{quantity}</span>
                 <button
                   onClick={() => setQuantity(quantity + 1)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50"
+                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold hover:bg-gray-50"
+                  style={{ color: '#374151' }}
                 >
                   +
                 </button>
@@ -154,7 +166,13 @@ export default function ProductDetails() {
             <button
               onClick={handleAddToCart}
               disabled={adding}
-              className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                backgroundColor: adding ? '#5a2a72' : '#6e348d',
+                color: 'white'
+              }}
+              onMouseEnter={(e) => !adding && (e.currentTarget.style.backgroundColor = '#5a2a72')}
+              onMouseLeave={(e) => !adding && (e.currentTarget.style.backgroundColor = '#6e348d')}
             >
               {adding ? (
                 <>
@@ -171,16 +189,16 @@ export default function ProductDetails() {
 
             <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <div className="flex items-center gap-3 text-sm">
-                <Truck className="h-5 w-5 text-gray-600" />
-                <span className="text-gray-700">Envío gratis en compras mayores a $500</span>
+                <Truck className="h-5 w-5" style={{ color: '#4b5563' }} />
+                <span style={{ color: '#374151' }}>Envío gratis en compras mayores a $500</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <Shield className="h-5 w-5 text-gray-600" />
-                <span className="text-gray-700">Garantía de 30 días</span>
+                <Shield className="h-5 w-5" style={{ color: '#4b5563' }} />
+                <span style={{ color: '#374151' }}>Garantía de 30 días</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <Package className="h-5 w-5 text-gray-600" />
-                <span className="text-gray-700">Envío en 24-48 horas</span>
+                <Package className="h-5 w-5" style={{ color: '#4b5563' }} />
+                <span style={{ color: '#374151' }}>Envío en 24-48 horas</span>
               </div>
             </div>
           </div>

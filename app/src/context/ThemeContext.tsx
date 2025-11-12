@@ -12,28 +12,29 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  // Always start in light mode, ignore system preference
   const [isDarkMode, setIsDarkMode] = useState(false)
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme')
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === 'dark')
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      setIsDarkMode(prefersDark)
-    }
+    // Always use light mode, do not detect system preference
+    // If you want to enable dark mode in the future, uncomment the code below
+    // const savedTheme = localStorage.getItem('theme')
+    // if (savedTheme) {
+    //   setIsDarkMode(savedTheme === 'dark')
+    // } else {
+    //   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    //   setIsDarkMode(prefersDark)
+    // }
+
+    // Force light mode
+    setIsDarkMode(false)
   }, [])
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark')
-      document.documentElement.classList.remove('light')
-    } else {
-      document.documentElement.classList.add('light')
-      document.documentElement.classList.remove('dark')
-    }
-
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
+    // Always keep light mode active
+    document.documentElement.classList.add('light')
+    document.documentElement.classList.remove('dark')
+    localStorage.setItem('theme', 'light')
   }, [isDarkMode])
 
   const toggleTheme = (): void => {
