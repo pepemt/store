@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import "../assets/styles/avatar.css";
 
 type AvatarState = "standby" | "talking" | "thinking";
