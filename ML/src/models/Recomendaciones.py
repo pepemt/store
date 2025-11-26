@@ -58,6 +58,10 @@ def configure_s3_env() -> None:
     os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
     if region:
         os.environ["AWS_DEFAULT_REGION"] = region
+    # OCI Object Storage (S3 compatible) no soporta chunked encoding ni virtual-hosted style
+    os.environ.setdefault("AWS_S3_FORCE_PATH_STYLE", "true")
+    os.environ.setdefault("AWS_S3_USE_CHUNKED_ENCODING", "false")
+    os.environ.setdefault("BOTO_DISABLE_PAYLOAD_SIGNING", "true")
 
 
 configure_s3_env()
