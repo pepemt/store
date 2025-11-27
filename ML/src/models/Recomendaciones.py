@@ -305,9 +305,51 @@ def train_and_log() -> Tuple[RecommenderArtifacts, str]:
     _, model_uri = log_model_to_mlflow(artifacts)
     return artifacts, model_uri
 
-def recomendacion_item_based(customer_id: str, n: int = 10) -> pd.DataFrame:
-    # make model from scratch using library (colaborative filtering)
-    pass
+def recomendacion_item_based(artifacts: RecommenderArtifacts, article_id: str, n: int = 10) -> pd.DataFrame:
+    """
+    Recomienda artículos similares a un artículo dado usando el modelo ALS entrenado.
+  
+    Parameters
+    ----------
+    artifacts : RecommenderArtifacts
+        Artefactos del modelo (incluye article_map y modelo ALS).
+    article_id : str
+        Identificador del artículo de referencia.
+    n : int
+        Número de artículos similares a devolver.
+  
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con columnas ["article_id", "score"] ordenado por similitud.
+    """
+    inv_article_map = {v: k for k, v in artifacts.article_map.items()}
+    idx = artifacts.article_map.get(str(article_id))
+    if idx is None:
+        raise ValueError(f"Artículo {article_id} no existe en el mapa de artículos")
+  
+    # similar_items suele incluir al propio artículo como el más parecido, así que pedimos n+1
+    recs = artifacts.model.similar_items(idx, N=n + 1)
+  
+    if isinstance(recs, tuple):
+        item_indices, scores = recs
+    else:
+        item_indices = [item for item, _ in recs]
+        scores = [score for _, score in recs]
+  
+    similar_article_ids = []
+    similar_scores = []
+    for i, s in zip(item_indices, scores):
+        aid = inv_article_map.get(int(i))
+        # Excluir el artículo de entrada
+        if aid is None or aid == str(article_id):
+            continue
+        similar_article_ids.append(aid)
+        similar_scores.append(float(s))
+        if len(similar_article_ids) >= n:
+            break
+  
+    return pd.DataFrame({"article_id": similar_article_ids, "score": similar_scores})
 
 def main():
     artifacts, model_uri = train_and_log()
@@ -316,6 +358,10 @@ def main():
     preview = artifacts.recommend(sample_customer).head()
     print("Vista previa de recomendaciones:")
     print(preview)
+    sample_article = next(iter(artifacts.article_map))
+    similar_preview = recomendacion_item_based(artifacts, sample_article).head()
+    print(f"Vista previa de artículos similares a {sample_article}:")
+    print(similar_preview)
 
 
 if __name__ == "__main__":
