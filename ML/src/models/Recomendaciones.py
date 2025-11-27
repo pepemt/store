@@ -29,42 +29,21 @@ if ENV_PATH.exists():
 else:
     load_dotenv()
 
+LOCAL_MLFLOW_DIR = Path(
+    os.getenv("LOCAL_MLFLOW_DIR", PROJECT_ROOT / "src" / "models" / "mlruns")
+).resolve()
+
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 from src.main import _ensure_java_home  # noqa: E402
 
 
-def configure_s3_env() -> None:
-    """Configura variables AWS para que boto3 use OCI Object Storage cuando se suban artifacts."""
+def _default_local_tracking_uri() -> str:
+    """Devuelve un file:// URI al directorio local de mlruns y lo crea si falta."""
 
-    # Las variables ya deberían estar configuradas en .env
-    # Esta función solo verifica que estén presentes
-    access_key = os.getenv("MLFLOW_S3_ACCESS_KEY_ID")
-    secret_key = os.getenv("MLFLOW_S3_SECRET_ACCESS_KEY")
-    region = os.getenv("MLFLOW_S3_REGION", "us-chicago-1")
-    endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
-
-    if not access_key:
-        raise ValueError("MLFLOW_S3_ACCESS_KEY_ID no está configurada en las variables de entorno")
-    if not secret_key:
-        raise ValueError("MLFLOW_S3_SECRET_ACCESS_KEY no está configurada en las variables de entorno")
-    if not endpoint:
-        raise ValueError("MLFLOW_S3_ENDPOINT_URL no está configurada en las variables de entorno")
-
-    # Asegurar que las variables estén en el ambiente para boto3
-    # boto3 internamente busca AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY
-    os.environ["AWS_ACCESS_KEY_ID"] = access_key
-    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
-    if region:
-        os.environ["AWS_DEFAULT_REGION"] = region
-    # OCI Object Storage (S3 compatible) no soporta chunked encoding ni virtual-hosted style
-    os.environ.setdefault("AWS_S3_FORCE_PATH_STYLE", "true")
-    os.environ.setdefault("AWS_S3_USE_CHUNKED_ENCODING", "false")
-    os.environ.setdefault("BOTO_DISABLE_PAYLOAD_SIGNING", "true")
-
-
-configure_s3_env()
+    LOCAL_MLFLOW_DIR.mkdir(parents=True, exist_ok=True)
+    return f"file:{LOCAL_MLFLOW_DIR}"
 
 
 @dataclass
@@ -247,14 +226,13 @@ class ALSWrapper(mlflow.pyfunc.PythonModel):
 
 
 def log_model_to_mlflow(artifacts: RecommenderArtifacts, run_name: str = "als recomendaciones") -> Tuple[str, str]:
-    tracking_uri = _get_env("MLFLOW_TRACKING_URI")
-    registry_uri = _get_env("MLFLOW_REGISTRY_URI")
+    # Forzamos todo a ser completamente local usando un backend file:// en LOCAL_MLFLOW_DIR
+    tracking_uri = _default_local_tracking_uri()
     experiment_name = _get_env("MLFLOW_EXPERIMENT_NAME", "Default")
 
-    if tracking_uri:
-        mlflow.set_tracking_uri(tracking_uri)
-    if registry_uri:
-        mlflow.set_registry_uri(registry_uri)
+    mlflow.set_tracking_uri(tracking_uri)
+    # Usar el mismo backend local para el registry (sin S3 / MinIO)
+    mlflow.set_registry_uri(tracking_uri)
     mlflow.set_experiment(experiment_name)
 
     with mlflow.start_run(run_name=run_name) as run:
@@ -327,6 +305,9 @@ def train_and_log() -> Tuple[RecommenderArtifacts, str]:
     _, model_uri = log_model_to_mlflow(artifacts)
     return artifacts, model_uri
 
+def recomendacion_item_based(customer_id: str, n: int = 10) -> pd.DataFrame:
+    # make model from scratch using library (colaborative filtering)
+    pass
 
 def main():
     artifacts, model_uri = train_and_log()
