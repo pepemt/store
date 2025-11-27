@@ -107,19 +107,21 @@ def _build_images(article_id: int) -> List[str]:
 async def _get_average_price(session, article_id: int) -> float:
     """
     Precio promedio por article_id; si no hay transacciones, fallback estable.
+    Todos los precios se multiplican por 590.
     """
+    PRICE_MULTIPLIER = 590.0
     try:
         q = select(func.avg(Transaction.price)).where(Transaction.article_id == article_id)
         result = await session.execute(q)
         avg_price = result.scalar()
         if avg_price is None:
-            # Fallback “determinístico” para que no cambie en cada request
+            # Fallback "determinístico" para que no cambie en cada request
             base = 29.99
-            return float(base + (article_id % 100))
-        return float(avg_price)
+            return float((base + (article_id % 100)) * PRICE_MULTIPLIER)
+        return float(avg_price * PRICE_MULTIPLIER)
     except Exception:
         base = 29.99
-        return float(base + (article_id % 100))
+        return float((base + (article_id % 100)) * PRICE_MULTIPLIER)
 
 
 def _to_product_response(row: Article, price: float) -> ProductResponse:
