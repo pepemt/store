@@ -7,6 +7,64 @@ interface ChatMessage {
   timestamp: string
   products?: any[] | null
   intent?: string | null
+  image?: string | null  // Base64 thumbnail for display in chat history
+}
+
+// Image validation constants
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
+
+// Helper to convert File to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      // Remove data URL prefix to get pure base64
+      const base64 = result.split('base64,')[1]
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Helper to create thumbnail for chat display
+const createThumbnail = (file: File, maxSize: number = 150): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1)
+        canvas.width = img.width * ratio
+        canvas.height = img.height * ratio
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'))
+          return
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.7))
+      }
+      img.onerror = reject
+      img.src = e.target?.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Helper to validate image
+const validateImage = (file: File): { valid: boolean; error?: string } => {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return { valid: false, error: 'Tipo de imagen no soportado. Usa PNG o JPG.' }
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    return { valid: false, error: `Imagen muy grande. Máximo ${MAX_IMAGE_SIZE / (1024 * 1024)}MB.` }
+  }
+  return { valid: true }
 }
 
 interface Conversation {
@@ -26,7 +84,7 @@ interface ChatContextType {
   conversations: Conversation[]
   activeConversationId: string | null
   addMessage: (message: Partial<ChatMessage>) => ChatMessage
-  sendMessage: (text: string) => Promise<void>
+  sendMessage: (text: string, image?: File | null) => Promise<void>
   clearMessages: () => void
   toggleChat: () => void
   closeChat: () => void
@@ -132,7 +190,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       sender: message.sender || 'user',
       timestamp: new Date().toISOString(),
       products: message.products || null,
-      intent: message.intent || null
+      intent: message.intent || null,
+      image: message.image || null  // Include image thumbnail for display
     }
 
     let newConvId: string | null = null
@@ -351,13 +410,52 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   }, [isOpen])
 
-  const sendMessage = async (text: string): Promise<void> => {
-    if (!text.trim()) return
+  const sendMessage = async (text: string, image?: File | null): Promise<void> => {
+    // Require either text or image
+    if (!text.trim() && !image) return
+
+    // Validate image if provided
+    let imageBase64: string | null = null
+    let imageThumbnail: string | null = null
+    let imageMimeType: string | null = null
+
+    if (image) {
+      const validation = validateImage(image)
+      if (!validation.valid) {
+        addMessage({
+          text: validation.error || 'Error con la imagen',
+          sender: 'assistant'
+        })
+        return
+      }
+
+      try {
+        // Convert to base64 for sending and create thumbnail for display
+        [imageBase64, imageThumbnail] = await Promise.all([
+          fileToBase64(image),
+          createThumbnail(image)
+        ])
+        imageMimeType = image.type
+      } catch (error) {
+        console.error('Error processing image:', error)
+        addMessage({
+          text: 'Error procesando la imagen. Intenta nuevamente.',
+          sender: 'assistant'
+        })
+        return
+      }
+    }
 
     // Capturar conversación activa al momento de enviar
     const conversationAtSendTime = activeConversationIdRef.current
 
-    addMessage({ text: text.trim(), sender: 'user' })
+    // Add user message with thumbnail if image was included
+    addMessage({
+      text: text.trim(),
+      sender: 'user',
+      image: imageThumbnail  // Store thumbnail for display
+    })
+
     // Marcar que ESTA conversación está esperando respuesta
     setTypingConversationId(conversationAtSendTime)
 
@@ -373,10 +471,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
       }
 
-      // Enviar mensaje CON el conversation_id para que el backend lo devuelva
-      const messageData = {
+      // Build message data with optional image
+      const messageData: {
+        message: string
+        conversation_id: string | null
+        image?: string
+        image_mime_type?: string
+      } = {
         message: text.trim(),
-        conversation_id: conversationAtSendTime  // Incluir conversación original
+        conversation_id: conversationAtSendTime
+      }
+
+      // Add image data if present
+      if (imageBase64 && imageMimeType) {
+        messageData.image = imageBase64
+        messageData.image_mime_type = imageMimeType
       }
 
       wsRef.current.send(JSON.stringify(messageData))
@@ -390,7 +499,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       addMessage({
         text: 'Lo siento, hubo un error. Intenta nuevamente.',
         sender: 'assistant'
-      }, conversationAtSendTime)  // Agregar mensaje de error a la conversación correcta
+      }, conversationAtSendTime)
     }
   }
 

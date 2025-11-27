@@ -90,6 +90,12 @@ class AgentState(TypedDict):
     intent: AgentIntent
     next_action: NextAction
 
+    # Soporte de imágenes (visión)
+    image_data: NotRequired[Optional[str]]           # base64 de la imagen (sin prefijo data:)
+    image_mime_type: NotRequired[Optional[str]]      # "image/png" o "image/jpeg"
+    image_description: NotRequired[Optional[str]]    # Descripción generada por vision_node
+    has_image: NotRequired[bool]                     # Flag para routing condicional
+
     # Contexto e-commerce
     customer_id: NotRequired[Optional[str]]          # ID del cliente si está autenticado
     search_query: NotRequired[Optional[str]]         # término de búsqueda actual

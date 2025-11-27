@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   MessageCircle,
@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Eye,
   Package,
+  ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useChat } from "../context/ChatContext";
@@ -38,8 +39,12 @@ export default function Chat() {
   const [inputValue, setInputValue] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [showConversations, setShowConversations] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // estado del avatar
   const [avatarState, setAvatarState] = useState<
@@ -83,17 +88,20 @@ export default function Chat() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() && !selectedImage) return;
 
     const messageText = inputValue;
-    setInputValue("");
+    const imageToSend = selectedImage;
 
-    // mientras esperamos respuesta, “pensando”
+    setInputValue("");
+    clearSelectedImage();
+
+    // mientras esperamos respuesta, "pensando"
     setAvatarState("thinking");
-    await sendMessage(messageText);
+    await sendMessage(messageText, imageToSend);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -135,6 +143,77 @@ export default function Chat() {
       });
     }
   };
+
+  // Image handling
+  const handleImageSelect = useCallback((file: File) => {
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Tipo de imagen no soportado", {
+        description: "Usa PNG o JPG",
+      });
+      return;
+    }
+
+    if (file.size > maxSize) {
+      toast.error("Imagen muy grande", {
+        description: "Máximo 5MB",
+      });
+      return;
+    }
+
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const clearSelectedImage = useCallback(() => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        handleImageSelect(files[0]);
+      }
+    },
+    [handleImageSelect]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        handleImageSelect(files[0]);
+      }
+    },
+    [handleImageSelect]
+  );
 
   if (location.pathname === "/chat") {
     return null;
@@ -188,17 +267,17 @@ export default function Chat() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowConversations(!showConversations)}
-                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors flex-shrink-0"
+                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors flex-shrink-0 z-[3000000]"
                   title="Historial de conversaciones"
                 >
                   <Menu className="h-5 w-5" strokeWidth={2} />
                 </Button>
 
                 {/* Avatar mini */}
-                <div className="relative flex items-center justify-center rounded-full bg-white/10 shadow-sm w-[4rem]">
+                <div className="relative flex items-center justify-center rounded-full bg-white/10 shadow-sm w-[3rem]">
                   {/* lo escalamos para que quepa en el header */}
                   <div className="fixed">
-                    <div className="absolute scale-[0.3] origin-top-left left-[-4rem] top-[-4.3rem]">
+                    <div className="absolute scale-[0.3] origin-top-left left-[-4.4rem] top-[-4.3rem]">
                       <Avatar state={avatarState} />
                     </div>
                   </div>
@@ -327,9 +406,22 @@ export default function Chat() {
                               : {}
                           }
                         >
-                          <p className="whitespace-pre-wrap text-sm">
-                            {message.text}
-                          </p>
+                          {/* Image thumbnail if present */}
+                          {message.image && (
+                            <div className="mb-2">
+                              <img
+                                src={message.image}
+                                alt="Imagen adjunta"
+                                className="max-w-[150px] max-h-[150px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(message.image!, "_blank")}
+                              />
+                            </div>
+                          )}
+                          {message.text && (
+                            <p className="whitespace-pre-wrap text-sm">
+                              {message.text}
+                            </p>
+                          )}
 
                           {/* Products */}
                           {message.products && message.products.length > 0 && (
@@ -556,8 +648,65 @@ export default function Chat() {
             </div>
 
             {/* Input Form */}
-            <form onSubmit={handleSubmit} className="border-t bg-white p-4">
+            <form
+              onSubmit={handleSubmit}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className="border-t bg-white p-4 relative"
+            >
+              {/* Drag overlay */}
+              {isDragOver && (
+                <div className="absolute inset-0 bg-purple-100/90 border-2 border-dashed border-purple-500 rounded-lg flex items-center justify-center z-10">
+                  <div className="text-center">
+                    <ImageIcon className="h-8 w-8 mx-auto mb-2 text-purple-600" />
+                    <p className="text-sm font-medium text-purple-700">
+                      Suelta la imagen aquí
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Image preview */}
+              {imagePreview && (
+                <div className="mb-3 relative inline-block">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="max-h-24 rounded-lg object-cover border border-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={clearSelectedImage}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-md"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+
               <div className="flex gap-2">
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileInputChange}
+                  accept="image/png,image/jpeg,image/jpg"
+                  className="hidden"
+                />
+
+                {/* Image button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-10 w-10 flex-shrink-0 border-gray-300 hover:border-purple-500 hover:text-purple-600 transition-colors"
+                  title="Adjuntar imagen"
+                >
+                  <ImageIcon className="h-5 w-5" strokeWidth={2} />
+                </Button>
+
                 <textarea
                   ref={inputRef}
                   value={inputValue}
@@ -565,8 +714,8 @@ export default function Chat() {
                     setInputValue(e.target.value);
                     setAvatarState("thinking");
                   }}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Escribe tu mensaje..."
+                  onKeyDown={handleKeyDown}
+                  placeholder={selectedImage ? "Agrega un mensaje (opcional)..." : "Escribe tu mensaje..."}
                   className="flex-1 resize-none rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                   rows={1}
                   style={{
@@ -584,7 +733,7 @@ export default function Chat() {
                   size="icon"
                   className="h-10 w-10 shadow-sm text-white"
                   style={{ backgroundColor: "#6e348d" }}
-                  disabled={!inputValue.trim() || isTyping}
+                  disabled={(!inputValue.trim() && !selectedImage) || isTyping}
                 >
                   <Send className="h-5 w-5" strokeWidth={2} />
                 </Button>

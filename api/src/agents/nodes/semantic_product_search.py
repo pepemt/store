@@ -21,22 +21,70 @@ async def semantic_product_search_node(state: AgentState) -> dict:
     import time
     start_time = time.time()
 
-    user_message = state["messages"][-1].content
+    messages = state["messages"]
+    user_message = messages[-1].content if messages else ""
+
+    # Get image description from current state or conversation context
+    image_description = state.get("image_description")
+    conversation_context = state.get("conversation_context", {})
+
+    # If no current image description, check context for recent one
+    if not image_description and conversation_context.get("last_image_description"):
+        image_description = conversation_context.get("last_image_description")
+        logger.info("Semantic search: using image description from conversation context")
+
+    # Build conversation history for context (last 4 messages for search relevance)
+    history_context = ""
+    if len(messages) > 1:
+        recent_messages = messages[-5:-1]  # Get up to 4 previous messages
+        history_lines = []
+        for msg in recent_messages:
+            role = getattr(msg, 'role', 'unknown') if hasattr(msg, 'role') else (
+                msg.get('role', 'unknown') if isinstance(msg, dict) else 'unknown'
+            )
+            content = getattr(msg, 'content', str(msg)) if hasattr(msg, 'content') else (
+                msg.get('content', str(msg)) if isinstance(msg, dict) else str(msg)
+            )
+            content_preview = content[:300] + "..." if len(content) > 300 else content
+            history_lines.append(f"  {role}: {content_preview}")
+        if history_lines:
+            history_context = "Recent conversation:\n" + "\n".join(history_lines) + "\n\n"
+
     logger.info("=" * 80)
     logger.info(f"🔍 SEMANTIC SEARCH NODE START: '{user_message}'")
+    if image_description:
+        logger.info(f"   📷 Image description available: '{image_description[:100]}...'")
+    if history_context:
+        logger.info(f"   📜 Using {len(messages)-1} messages from conversation history")
     logger.info("=" * 80)
 
     try:
-        # Step 1: Extract key product attributes from user query
-        refinement_prompt = f"""Extract ONLY the product search attributes from this user query. Ignore context, intentions, and extra information.
+        # Build search context - include image description and history if available
+        if image_description:
+            search_context = f"""{history_context}User query: {user_message}
 
-User query: {user_message}
+Image description (from current or recent message):
+{image_description}
+
+Extract the product attributes from BOTH the user's text AND the image description.
+If the user refers to "esto", "algo así", "similar", they mean the image above."""
+        elif history_context:
+            search_context = f"""{history_context}User query: {user_message}
+
+Consider the conversation context when extracting search terms."""
+        else:
+            search_context = f"User query: {user_message}"
+
+        # Step 1: Extract key product attributes from user query
+        refinement_prompt = f"""Extract ONLY the product search attributes from this query. Ignore context, intentions, and extra information.
+
+{search_context}
 
 Extract:
-- Product type (e.g., "sandals", "necklace", "shirt")
+- Product type (e.g., "skirt", "sandals", "necklace", "shirt", "dress")
 - Color (if mentioned)
 - Gender (if mentioned: "men", "women", "unisex")
-- Key characteristics (e.g., "leather", "cotton", "casual")
+- Key characteristics (e.g., "short", "pleated", "leather", "cotton", "casual", "elegant")
 
 Return ONLY the essential search terms separated by spaces, in English.
 Focus on what the product IS, not what it's FOR or how it will be used.
@@ -48,11 +96,13 @@ Output: necklace
 Input: "Sandalias para andar en mi casa para descansar de hombre negras"
 Output: sandals men black
 
-Input: "Quiero una camisa azul de algodón"
-Output: shirt blue cotton
+Input: Image shows "falda corta negra con pliegues"
+Output: skirt black short pleated
 
-Now extract from: {user_message}
-Search terms:"""
+Input: "Quiero algo como esto" + Image shows "vestido rojo elegante"
+Output: dress red elegant
+
+Now extract the search terms:"""
 
         logger.info("⏱️  Step 1: Calling LLM to refine query...")
         llm_start = time.time()
@@ -96,7 +146,15 @@ Search terms:"""
                 for p in products
             ])
 
+            # Build response context - include image description if available
+            image_context = ""
+            if image_description:
+                image_context = f"""
+The user also sent an image. You analyzed it and saw: {image_description[:300]}
+Based on this image, you searched for similar products."""
+
             response_prompt = f"""You are a helpful shopping assistant. The user asked: "{user_message}"
+{image_context}
 
 I found these products using semantic search (ranked by relevance):
 {products_text}
@@ -104,6 +162,7 @@ I found these products using semantic search (ranked by relevance):
 IMPORTANT: Respond in the SAME LANGUAGE as the user's query.
 - If the user wrote in Spanish, respond in Spanish
 - If the user wrote in English, respond in English
+- If the user sent an image, acknowledge that you saw and understood what was in it
 
 Provide a friendly, helpful response presenting these products. Be concise but enthusiastic.
 Mention key details like name, price, category, and color."""

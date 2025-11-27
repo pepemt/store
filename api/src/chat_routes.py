@@ -6,9 +6,14 @@ import logging
 import json
 import sys
 import os
-from typing import Optional
+import base64
+from typing import Optional, Tuple
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel
+
+# Image validation constants
+MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg"}
 
 # Add agents directory to path
 agents_path = os.path.join(os.path.dirname(__file__), 'agents')
@@ -66,10 +71,40 @@ def get_session_manager_instance():
 
 class ChatMessage(BaseModel):
     """Chat message model."""
-    message: str
+    message: str = ""  # Optional if image is provided
+    image: Optional[str] = None  # Base64 encoded image
+    image_mime_type: Optional[str] = None  # "image/png" or "image/jpeg"
     session_id: Optional[str] = None
     customer_id: Optional[str] = None
     conversation_id: Optional[str] = None  # Frontend conversation ID
+
+
+def validate_image(image_base64: str, mime_type: Optional[str]) -> Tuple[bool, str, str]:
+    """
+    Validate image size and type.
+    Returns (is_valid, error_message, clean_base64)
+    """
+    if not mime_type:
+        mime_type = "image/jpeg"  # Default assumption
+
+    if mime_type not in ALLOWED_MIME_TYPES:
+        return False, "Tipo de imagen no soportado. Usa PNG o JPG.", ""
+
+    try:
+        # Remove data URL prefix if present
+        clean_base64 = image_base64
+        if "base64," in image_base64:
+            clean_base64 = image_base64.split("base64,")[1]
+
+        # Validate base64 and check size
+        decoded = base64.b64decode(clean_base64)
+        if len(decoded) > MAX_IMAGE_SIZE_BYTES:
+            return False, f"Imagen muy grande. Máximo {MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB.", ""
+
+        return True, "", clean_base64
+    except Exception as e:
+        logger.error(f"Image validation error: {e}")
+        return False, "Formato de imagen inválido.", ""
 
 
 class ConnectionManager:
@@ -152,16 +187,40 @@ async def websocket_chat_endpoint(
                 # Extraer conversation_id del cliente (puede ser None)
                 conversation_id = message_data.get("conversation_id")
 
-                if not user_message:
+                # Extract and validate image if present
+                image_data = None
+                image_mime_type = None
+                raw_image = message_data.get("image")
+
+                if raw_image:
+                    image_mime_type = message_data.get("image_mime_type", "image/jpeg")
+                    is_valid, error_msg, clean_base64 = validate_image(raw_image, image_mime_type)
+
+                    if not is_valid:
+                        await manager.send_message(session_id, {
+                            "type": "error",
+                            "message": error_msg,
+                            "conversation_id": conversation_id
+                        })
+                        continue
+
+                    image_data = clean_base64
+                    logger.info(f"Image received: {image_mime_type}, size ~{len(clean_base64) * 3 // 4 // 1024}KB")
+
+                # Require either message or image
+                if not user_message and not image_data:
                     await manager.send_message(session_id, {
                         "type": "error",
-                        "message": "Mensaje vacío",
-                        "conversation_id": conversation_id  # Devolver conversation_id original
+                        "message": "Envía un mensaje o una imagen",
+                        "conversation_id": conversation_id
                     })
                     continue
 
-                # Add user message to session history
-                chat_session.add_message("user", user_message)
+                # Add user message to session history (include [imagen] marker if image)
+                session_message = user_message if user_message else ""
+                if image_data:
+                    session_message = f"[imagen adjunta] {session_message}".strip()
+                chat_session.add_message("user", session_message)
 
                 # Send typing indicator
                 await manager.send_message(session_id, {
@@ -179,7 +238,7 @@ async def websocket_chat_endpoint(
                         "content": msg["content"]
                     })
 
-                # Create initial state
+                # Create initial state with image support
                 initial_state: AgentState = {
                     "messages": agent_messages,
                     "intent": "",
@@ -189,11 +248,19 @@ async def websocket_chat_endpoint(
                     "category_filter": None,
                     "department_filter": None,
                     "products_found": [],
-                    "conversation_context": chat_session.context
+                    "conversation_context": chat_session.context,
+                    # Image fields
+                    "image_data": image_data,
+                    "image_mime_type": image_mime_type if image_data else None,
+                    "image_description": None,
+                    "has_image": image_data is not None,
                 }
 
                 # Run agent graph with ainvoke (async)
-                logger.info(f"Processing message for session {session_id}: {user_message}")
+                log_msg = f"Processing message for session {session_id}: {user_message or '(no text)'}"
+                if image_data:
+                    log_msg += " [with image]"
+                logger.info(log_msg)
                 result = await agent_graph.ainvoke(initial_state)
 
                 # Extract response
@@ -204,11 +271,18 @@ async def websocket_chat_endpoint(
                 # Add assistant message to session
                 chat_session.add_message("assistant", assistant_message)
 
-                # Update session context
-                chat_session.update_context({
+                # Update session context - include image description if present
+                context_update = {
                     "last_intent": intent,
                     "last_products": products[:3] if products else []  # Store up to 3 products
-                })
+                }
+
+                # Save image description for future reference in conversation
+                if result.get("image_description"):
+                    context_update["last_image_description"] = result.get("image_description")
+                    logger.info(f"Saved image description to session context for future reference")
+
+                chat_session.update_context(context_update)
 
                 # Send response to client
                 response_data = {

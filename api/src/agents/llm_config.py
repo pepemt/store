@@ -47,3 +47,19 @@ llm = ChatOCIGenAI(
     # Rate limiter to prevent hitting API limits
     rate_limiter=rate_limiter,
 )
+
+
+# Vision LLM instance using Llama 3.2 90B Vision for image analysis
+vision_llm = ChatOCIGenAI(
+    model_id=os.getenv("OCI_GENAI_VISION_MODEL_ID", "meta.llama-3.2-90b-vision-instruct"),
+    service_endpoint=os.getenv("OCI_GENAI_ENDPOINT"),
+    compartment_id=os.getenv("OCI_GENAI_COMPARTMENT_ID"),
+    auth_type="API_KEY",
+    auth_profile="DEFAULT",
+    model_kwargs={
+        "temperature": 0.3,  # More conservative for precise descriptions
+        "max_tokens": 500,   # Concise descriptions
+        "top_p": 0.9,
+    },
+    rate_limiter=rate_limiter,
+)
