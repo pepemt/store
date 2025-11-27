@@ -10,8 +10,8 @@
 /* Contenedor del personaje (el componente lo monta con id="character") */
 #character {
   position: relative;
-  width: 400px;         /* tamaño natural; se puede escalar desde el className */
-  height: 400px;
+  /* width: 400px;
+  height: 400px; */
 }
 
 /* Estructura interna */

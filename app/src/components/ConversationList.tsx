@@ -56,7 +56,7 @@ export default function ConversationList() {
   return (
     <div className="flex h-full flex-col border-r bg-gray-50">
       {/* Header */}
-      <div className="flex items-center border-b px-3 py-4" style={{ backgroundColor: '#6e348d', height: '80px' }}>
+      <div className="flex items-center border-b px-3 py-4" style={{ backgroundColor: '#6e348d' }}>
         <Button
           onClick={createNewConversation}
           className="w-full shadow-sm text-white hover:bg-white/20 transition-colors font-semibold"
