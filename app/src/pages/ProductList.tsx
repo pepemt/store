@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Search, Star, ShoppingCart, Loader } from 'lucide-react'
+import { Search, Star, ShoppingCart, Loader, Filter, X } from 'lucide-react'
 import { productService } from '../services/productService'
 import { useCart } from '../context/CartContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
@@ -28,20 +28,51 @@ export default function ProductList() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [categories, setCategories] = useState<string[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || '')
 
+  // Cargar categorías al montar el componente
+  useEffect(() => {
+    loadCategories()
+  }, [])
+
+  // Sincronizar categoría seleccionada con searchParams
+  useEffect(() => {
+    const categoryParam = searchParams.get('category') || ''
+    setSelectedCategory(categoryParam)
+    const qParam = searchParams.get('q') || ''
+    setSearchQuery(qParam)
+  }, [searchParams])
+
+  // Recargar productos cuando cambian los parámetros de búsqueda o página
   useEffect(() => {
     loadProducts()
   }, [page, searchParams])
+
+  const loadCategories = async () => {
+    try {
+      setLoadingCategories(true)
+      const cats = await productService.getCategories()
+      setCategories(cats)
+    } catch (err) {
+      console.error('Error al cargar categorías:', err)
+    } finally {
+      setLoadingCategories(false)
+    }
+  }
 
   const loadProducts = async () => {
     try {
       setLoading(true)
       setError('')
       const q = searchParams.get('q') || ''
+      const category = searchParams.get('category') || ''
       const data = await productService.getProducts({
         page,
         per_page: 12,
-        search: q
+        search: q,
+        category: category || undefined
       })
       setProducts(data.products || [])
       setTotalPages(data.total_pages || 1)
@@ -55,11 +86,34 @@ export default function ProductList() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    const params: Record<string, string> = {}
     if (searchQuery.trim()) {
-      setSearchParams({ q: searchQuery.trim() })
-    } else {
-      setSearchParams({})
+      params.q = searchQuery.trim()
     }
+    if (selectedCategory) {
+      params.category = selectedCategory
+    }
+    setSearchParams(params)
+    setPage(1)
+  }
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category)
+    const params: Record<string, string> = {}
+    if (searchQuery.trim()) {
+      params.q = searchQuery.trim()
+    }
+    if (category) {
+      params.category = category
+    }
+    setSearchParams(params)
+    setPage(1)
+  }
+
+  const clearFilters = () => {
+    setSelectedCategory('')
+    setSearchQuery('')
+    setSearchParams({})
     setPage(1)
   }
 
@@ -78,7 +132,7 @@ export default function ProductList() {
         <div className="mb-8">
           <h1 className="mb-6 text-3xl font-bold text-gray-900">Productos</h1>
 
-          <form onSubmit={handleSearch} className="flex gap-3">
+          <form onSubmit={handleSearch} className="mb-4 flex gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
@@ -96,13 +150,69 @@ export default function ProductList() {
               Buscar
             </button>
           </form>
+
+          {/* Filtros por Categoría */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-5 w-5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Filtrar por categoría:</span>
+            </div>
+            
+            {loadingCategories ? (
+              <div className="flex items-center gap-2">
+                <Loader className="h-4 w-4 animate-spin text-gray-400" />
+                <span className="text-sm text-gray-500">Cargando categorías...</span>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleCategoryChange('')}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    !selectedCategory
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Todas
+                </button>
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => handleCategoryChange(category)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                      selectedCategory === category
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+                {(selectedCategory || searchQuery) && (
+                  <button
+                    onClick={clearFilters}
+                    className="ml-auto flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <X className="h-4 w-4" />
+                    Limpiar filtros
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Results Info */}
-        {searchParams.get('q') && (
+        {(searchParams.get('q') || searchParams.get('category')) && (
           <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <p className="text-sm text-gray-600">
-              Resultados de búsqueda para: <span className="font-semibold">{searchParams.get('q')}</span>
+              {searchParams.get('q') && (
+                <>Resultados de búsqueda para: <span className="font-semibold">{searchParams.get('q')}</span></>
+              )}
+              {searchParams.get('q') && searchParams.get('category') && ' • '}
+              {searchParams.get('category') && (
+                <>Categoría: <span className="font-semibold">{searchParams.get('category')}</span></>
+              )}
             </p>
           </div>
         )}

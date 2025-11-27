@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext'
 import MobileMenu from './MobileMenu'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
+import logo from  "../assets/styles/Logo_recortado.png";
 
 export default function Header() {
   const { user, logout } = useAuth()
@@ -47,13 +48,17 @@ export default function Header() {
           </Button>
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-black">
-            <Package className="h-8 w-8" />
-            <span className="hidden sm:block text-black">La Tiendita</span>
+          <Link to="/" className="flex items-center gap-2">
+            <img 
+              src={logo} 
+              alt="La Tiendita" 
+              className="h-10 w-auto object-contain"
+            />
           </Link>
 
+
           {/* Search Bar - Desktop */}
-          <form onSubmit={handleSearch} className="hidden flex-1 md:flex md:max-w-2xl">
+          <form onSubmit={handleSearch} className="hidden flex-1 md:flex md:max-w-2xl ml-4">
             <div className="relative flex w-full shadow-sm">
               <Input
                 name="q"

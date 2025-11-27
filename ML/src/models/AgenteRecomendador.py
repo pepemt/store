@@ -18,36 +18,20 @@ if ENV_PATH.exists():
 else:
     load_dotenv()
 
-def _configure_s3_env() -> None:
-    """Configura variables AWS para que boto3 use OCI Object Storage cuando se suban artifacts."""
+LOCAL_MLFLOW_DIR = Path(
+    os.getenv("LOCAL_MLFLOW_DIR", PROJECT_ROOT / "src" / "models" / "mlruns")
+).resolve()
 
-    # Las variables ya deberían estar configuradas en .env
-    # Esta función solo verifica que estén presentes
-    access_key = os.getenv("MLFLOW_S3_ACCESS_KEY_ID")
-    secret_key = os.getenv("MLFLOW_S3_SECRET_ACCESS_KEY")
-    region = os.getenv("MLFLOW_S3_REGION", "us-chicago-1")
-    endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
 
-    if not access_key:
-        raise ValueError("MLFLOW_S3_ACCESS_KEY_ID no está configurada en las variables de entorno")
-    if not secret_key:
-        raise ValueError("MLFLOW_S3_SECRET_ACCESS_KEY no está configurada en las variables de entorno")
-    if not endpoint:
-        raise ValueError("MLFLOW_S3_ENDPOINT_URL no está configurada en las variables de entorno")
+def _local_tracking_uri() -> str:
+    """Devuelve file://... apuntando al mlruns local y garantiza su existencia."""
 
-    # Asegurar que las variables estén en el ambiente para boto3
-    # boto3 internamente busca AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY
-    os.environ["AWS_ACCESS_KEY_ID"] = access_key
-    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
-    if region:
-        os.environ["AWS_DEFAULT_REGION"] = region
-
-_configure_s3_env()
+    LOCAL_MLFLOW_DIR.mkdir(parents=True, exist_ok=True)
+    return f"file:{LOCAL_MLFLOW_DIR}"
 
 def _resolve_tracking_uri() -> None:
-    tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
-    if tracking_uri:
-        mlflow.set_tracking_uri(tracking_uri)
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI") or _local_tracking_uri()
+    mlflow.set_tracking_uri(tracking_uri)
 
     registry_uri = os.getenv("MLFLOW_REGISTRY_URI")
     if registry_uri:

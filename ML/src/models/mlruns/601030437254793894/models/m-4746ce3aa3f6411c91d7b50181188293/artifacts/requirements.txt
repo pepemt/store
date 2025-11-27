@@ -1,0 +1,5 @@
+mlflow>=3.0.0
+implicit>=0.7
+pandas
+numpy
+scipy
