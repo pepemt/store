@@ -80,7 +80,7 @@ export default function Chat() {
     const last = messages[messages.length - 1];
     if (last?.sender === "assistant") {
       setAvatarState("talking");
-      const t = setTimeout(() => setAvatarState("standby"), 2500);
+      const t = setTimeout(() => setAvatarState("standby"), 6000);
       return () => clearTimeout(t);
     }
     setAvatarState("standby");
