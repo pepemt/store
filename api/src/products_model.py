@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 # Reutilizamos la lógica de carga del modelo definida en src/ml.py
-from src.ml import get_model
+from model_loader import get_model
 
 router = APIRouter(
     prefix="/products",
