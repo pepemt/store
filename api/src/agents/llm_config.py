@@ -31,18 +31,19 @@ except Exception as e:
 
 
 # LLM instance using OCI Generative AI
+# Note: xAI Grok models use the same GenericChatRequest format as Meta models,
+# so we explicitly set provider="meta" for non-Cohere models
 llm = ChatOCIGenAI(
     model_id=os.getenv("OCI_GENAI_MODEL_ID"),
     service_endpoint=os.getenv("OCI_GENAI_ENDPOINT"),
     compartment_id=os.getenv("OCI_GENAI_COMPARTMENT_ID"),
     auth_type="API_KEY",
     auth_profile="DEFAULT",
+    provider=os.getenv("OCI_GENAI_PROVIDER", "meta"),  # xAI/Grok uses GenericChatRequest (meta format)
     model_kwargs={
         "temperature": 0.7,
         "max_tokens": 2000,
         "top_p": 0.9,
-        "frequency_penalty": 0.0,
-        "presence_penalty": 0.0,
     },
     # Rate limiter to prevent hitting API limits
     rate_limiter=rate_limiter,
@@ -56,6 +57,7 @@ vision_llm = ChatOCIGenAI(
     compartment_id=os.getenv("OCI_GENAI_COMPARTMENT_ID"),
     auth_type="API_KEY",
     auth_profile="DEFAULT",
+    provider="meta",  # Meta models use GenericChatRequest
     model_kwargs={
         "temperature": 0.3,  # More conservative for precise descriptions
         "max_tokens": 500,   # Concise descriptions
