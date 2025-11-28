@@ -80,6 +80,17 @@ export default function Landing() {
     fetchFeatured()
   }, [])
 
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual"
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    })
+  }, [])
+
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length)
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
 

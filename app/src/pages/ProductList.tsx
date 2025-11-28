@@ -179,11 +179,23 @@ export default function ProductList() {
                   <button
                     key={category}
                     onClick={() => handleCategoryChange(category)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                      selectedCategory === category
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                    style={{
+                      backgroundColor: selectedCategory === category ? "#6e348d" : "#f3f4f6",
+                      color: selectedCategory === category ? "white" : "#374151"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedCategory !== category) {
+                        e.currentTarget.style.backgroundColor = "#ffb320"
+                        e.currentTarget.style.color = "white"
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedCategory !== category) {
+                        e.currentTarget.style.backgroundColor = "#f3f4f6"
+                        e.currentTarget.style.color = "#374151"
+                      }
+                    }}
                   >
                     {category}
                   </button>
@@ -277,14 +289,16 @@ export default function ProductList() {
                           <span className="text-2xl font-bold text-primary-600">
                             ${product.price.toFixed(2)}
                           </span>
-                          {typeof product.stock !== 'undefined' && (
-                            <p className="text-xs text-gray-500">Stock: {product.stock}</p>
-                          )}
                         </div>
 
                         <button
                           onClick={() => handleAddToCart(product)}
-                          className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors"
+                          style={{
+                            backgroundColor: '#6e348d'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ffb320'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6e348d'}
                         >
                           <ShoppingCart className="h-4 w-4" />
                           Agregar

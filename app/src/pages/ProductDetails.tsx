@@ -14,7 +14,6 @@ interface Product {
   price: number
   images?: string[]
   rating?: number
-  stock?: number
   category?: string
 }
 
@@ -31,9 +30,11 @@ export default function ProductDetails() {
 
   useEffect(() => {
     if (id) {
+      window.scrollTo({ top: 0, behavior: 'smooth' }) 
       loadProduct()
     }
   }, [id])
+
 
   const loadProduct = async () => {
     try {
