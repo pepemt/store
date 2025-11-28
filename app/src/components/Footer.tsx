@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Mail, Phone, MapPin, Facebook, Instagram, Twitter, Package } from 'lucide-react'
+import Logo from "../assets/styles/Logo_recortado.png";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
@@ -12,7 +13,7 @@ export default function Footer() {
           <div>
             <Link to="/" className="mb-4 flex items-center gap-2 text-xl font-bold text-primary-600">
               <Package className="h-6 w-6" />
-              <span>La Tiendita</span>
+              <img src={Logo} alt="La Tiendita" className="h-6" />
             </Link>
             <p className="mb-4 text-sm text-gray-600">
               Tu tienda de confianza con los mejores productos al mejor precio. Calidad garantizada y envío rápido.
@@ -102,7 +103,7 @@ export default function Footer() {
             <ul className="space-y-3 text-sm text-gray-600">
               <li className="flex items-start gap-3">
                 <Mail className="h-5 w-5 text-primary-600" />
-                <span>info@latiendita.com</span>
+                <span>info@zenith.com</span>
               </li>
               <li className="flex items-start gap-3">
                 <Phone className="h-5 w-5 text-primary-600" />
@@ -110,7 +111,7 @@ export default function Footer() {
               </li>
               <li className="flex items-start gap-3">
                 <MapPin className="h-5 w-5 text-primary-600" />
-                <span>Esquina Principal #123<br />Ciudad, País</span>
+                <span>Esquina Principal #123<br />Estado de México, México</span>
               </li>
             </ul>
           </div>
@@ -119,7 +120,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 border-t border-gray-200 pt-8">
           <div className="flex flex-col items-center justify-between gap-4 text-sm text-gray-600 sm:flex-row">
-            <p>© {currentYear} La Tiendita. Todos los derechos reservados.</p>
+            <p>© {currentYear} ZENITH. Todos los derechos reservados.</p>
             <div className="flex gap-4">
               <a href="#" className="hover:text-primary-600">
                 Términos de Servicio

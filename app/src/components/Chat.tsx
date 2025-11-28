@@ -285,7 +285,7 @@ export default function Chat() {
 
                 <div className="flex-shrink-0">
                   <h3 className="font-semibold text-base whitespace-nowrap">
-                    Asistente La Tiendita
+                    Eyra - AI 
                   </h3>
                   <p className="text-xs text-white/90 whitespace-nowrap">
                     {avatarState === "thinking"
@@ -346,11 +346,11 @@ export default function Chat() {
                     />
                   </div>
                   <h4 className="mb-2 text-lg font-semibold text-gray-900">
-                    ¡Hola! Soy tu asistente
+                    ¡Hola! Soy Eyra, tu asistente de compras
                   </h4>
                   <p className="mb-6 max-w-sm text-sm text-gray-600">
                     Estoy aquí para ayudarte con cualquier duda sobre productos,
-                    pedidos o navegación en la tienda.
+                    pedidos o navegación en la tienda. ¡Pideme con confianza lo que quieras!
                   </p>
                   <div className="space-y-2 w-full max-w-xs">
                     <Button
