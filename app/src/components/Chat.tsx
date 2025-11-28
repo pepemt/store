@@ -19,6 +19,7 @@ import { useChat } from "../context/ChatContext";
 import { useCart } from "../context/CartContext";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { Markdown } from "./ui/markdown";
 import ConversationList from "./ConversationList";
 import Avatar from "./Avatar";
 
@@ -422,9 +423,15 @@ export default function Chat() {
                             </div>
                           )}
                           {message.text && (
-                            <p className="whitespace-pre-wrap text-sm">
-                              {message.text}
-                            </p>
+                            message.sender === "assistant" ? (
+                              <Markdown className="text-gray-900">
+                                {message.text}
+                              </Markdown>
+                            ) : (
+                              <p className="whitespace-pre-wrap text-sm">
+                                {message.text}
+                              </p>
+                            )
                           )}
 
                           {/* Products */}
