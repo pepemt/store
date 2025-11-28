@@ -172,7 +172,7 @@ async def websocket_chat_endpoint(
         await manager.send_message(session_id, {
             "type": "connection",
             "session_id": session_id,
-            "message": "Conectado al asistente de La Tiendita de la Esquina",
+            "message": "Conectado al asistente de Zenith",
             "history": chat_session.get_message_history(limit=10)
         })
 

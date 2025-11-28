@@ -58,6 +58,7 @@ const createThumbnail = (file: File, maxSize: number = 150): Promise<string> => 
 
 // Helper to validate image
 const validateImage = (file: File): { valid: boolean; error?: string } => {
+  console.log(`[Image Validation] File: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`)
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     return { valid: false, error: 'Tipo de imagen no soportado. Usa PNG o JPG.' }
   }
@@ -436,6 +437,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           createThumbnail(image)
         ])
         imageMimeType = image.type
+
+        // Debug logging
+        console.log(`[SendMessage] Original file size: ${image.size} bytes`)
+        console.log(`[SendMessage] Full base64 length: ${imageBase64?.length || 0} chars (~${Math.round((imageBase64?.length || 0) * 3 / 4 / 1024)}KB)`)
+        console.log(`[SendMessage] Thumbnail base64 length: ${imageThumbnail?.length || 0} chars`)
       } catch (error) {
         console.error('Error processing image:', error)
         addMessage({

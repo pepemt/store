@@ -21,7 +21,7 @@ from .s3_service import S3Service
 load_dotenv()
 logger = setup_logging()
 
-app = FastAPI(title="La Tiendita de la Esquina API", version="0.1.0")
+app = FastAPI(title="Zenith API", version="0.1.0")
 
 # CORS (en dev dejamos * para evitar bloqueos; en prod lista dominios)
 app.add_middleware(
@@ -147,7 +147,7 @@ async def shutdown_event():
 
 @app.get("/")
 async def hello():
-    return {"message": "¡Bienvenido a La Tiendita de la Esquina API!", "status": "running"}
+    return {"message": "¡Bienvenido a Zenith API!", "status": "running"}
 
 
 @app.get("/health")

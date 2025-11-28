@@ -13,7 +13,7 @@ export default function Footer() {
           <div>
             <Link to="/" className="mb-4 flex items-center gap-2 text-xl font-bold text-primary-600">
               <Package className="h-6 w-6" />
-              <img src={Logo} alt="La Tiendita" className="h-6" />
+              <img src={Logo} alt="Zenith" className="h-6" />
             </Link>
             <p className="mb-4 text-sm text-gray-600">
               Tu tienda de confianza con los mejores productos al mejor precio. Calidad garantizada y envío rápido.

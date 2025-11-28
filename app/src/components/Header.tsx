@@ -51,7 +51,7 @@ export default function Header() {
           <Link to="/" className="flex items-center gap-2">
             <img 
               src={logo} 
-              alt="La Tiendita" 
+              alt="Zenith" 
               className="h-10 w-auto object-contain"
             />
           </Link>

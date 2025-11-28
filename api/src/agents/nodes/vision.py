@@ -16,6 +16,7 @@ from oci.generative_ai_inference.models import (
     OnDemandServingMode,
     GenericChatRequest,
     UserMessage,
+    SystemMessage,
     TextContent,
     ImageContent,
     ImageUrl,
@@ -79,6 +80,10 @@ async def vision_node(state: AgentState) -> dict:
     image_size_kb = len(image_data) * 3 // 4 // 1024
     logger.info(f"   Image size: ~{image_size_kb}KB (base64 length: {len(image_data)})")
 
+    # Warn if image is very small (might cause issues)
+    if image_size_kb < 5:
+        logger.warning(f"Image is very small ({image_size_kb}KB) - may have quality issues")
+
     try:
         # Build vision prompt - focused on fashion/clothing
         # Note: Llama 3.2 Vision only supports English for image+text tasks
@@ -101,45 +106,31 @@ The user said: """ + user_message + """
 
 Consider their context when describing the product."""
         else:
-            vision_prompt = """You are a fashion product analyst for an online clothing store.
-
-Analyze this image and describe in detail:
-1. Type of clothing/accessory (shirt, pants, dress, shoes, bag, jewelry, etc.)
-2. Color(s) and patterns (solid, stripes, floral, etc.)
-3. Style (casual, formal, sporty, elegant, etc.)
-4. Material if visible (cotton, leather, denim, silk, etc.)
-5. Key features (buttons, zipper, collar type, etc.)
-
-Be concise but detailed. Respond in Spanish.
-
-After describing the image, ask the user what they would like to do:
-- Search for similar products?
-- Get more information about this type of item?
-- Something else?"""
+            # Very simple prompt when no user context
+            vision_prompt = "What is in this image? Describe it briefly in Spanish."
 
         # Get OCI client
         client = get_oci_vision_client()
 
         # Build the multimodal message using OCI SDK format
-        # Convert mime type to format OCI expects
-        mime_type_clean = image_mime_type.replace("image/", "")
-        if mime_type_clean == "jpeg":
-            mime_type_clean = "jpg"
+        # Use the full MIME type as-is (image/jpeg, image/png, etc.)
+        image_url = f"data:{image_mime_type};base64,{image_data}"
 
-        image_url = f"data:image/{mime_type_clean};base64,{image_data}"
+        # Create system message for context
+        system_msg = SystemMessage(
+            content=[TextContent(text="You are a helpful assistant that describes images accurately. Always respond in Spanish.")]
+        )
 
-        # Create multimodal content - IMAGE FIRST for better Llama Vision processing
-        content = [
+        # Create multimodal user message - IMAGE FIRST for Llama Vision models
+        user_content = [
             ImageContent(image_url=ImageUrl(url=image_url)),
             TextContent(text=vision_prompt)
         ]
-
-        # Create user message with multimodal content
-        user_msg = UserMessage(content=content)
+        user_msg = UserMessage(content=user_content)
 
         # Build chat request using GenericChatRequest for Llama models
         chat_request = GenericChatRequest(
-            messages=[user_msg],
+            messages=[system_msg, user_msg],
             max_tokens=500,
             temperature=0.3,
             top_p=0.9,

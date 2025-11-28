@@ -28,7 +28,7 @@ async def chat_node(state: AgentState) -> dict:
         logger.info("Chat node: using image description from conversation context")
 
     # Build context-aware system prompt
-    system_prompt = """Eres un asistente amigable de La Tiendita de la Esquina, una tienda de ropa en línea.
+    system_prompt = """Eres un asistente amigable de Zenith, una tienda de ropa en línea.
 
 Tu rol es:
 - Saludar y ayudar a los clientes de manera amable

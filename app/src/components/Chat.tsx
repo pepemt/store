@@ -149,6 +149,8 @@ export default function Chat() {
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
     const maxSize = 5 * 1024 * 1024; // 5MB
 
+    console.log(`[Image] Selected file: ${file.name}, size: ${file.size} bytes (${(file.size / 1024).toFixed(1)}KB), type: ${file.type}`);
+
     if (!allowedTypes.includes(file.type)) {
       toast.error("Tipo de imagen no soportado", {
         description: "Usa PNG o JPG",
@@ -166,7 +168,9 @@ export default function Chat() {
     setSelectedImage(file);
     const reader = new FileReader();
     reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
+      const result = e.target?.result as string;
+      console.log(`[Image] Base64 preview length: ${result?.length || 0} chars`);
+      setImagePreview(result);
     };
     reader.readAsDataURL(file);
   }, []);

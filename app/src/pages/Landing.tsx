@@ -27,7 +27,7 @@ export default function Landing() {
   const slides = [
     {
       id: 1,
-      title: "Bienvenido a La Tiendita",
+      title: "Bienvenido a Zenith",
       subtitle: "Descubre productos increíbles al mejor precio. Tu tienda de confianza con la mejor calidad y servicio.",
       primaryButton: "Crear cuenta gratis",
       secondaryButton: "Iniciar sesión",
