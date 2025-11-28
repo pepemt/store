@@ -160,7 +160,7 @@ export default function Landing() {
           <div className="grid gap-8 md:grid-cols-3">
             <Card className="text-center border-none shadow-md hover:shadow-lg transition-shadow">
               <CardContent className="pt-6">
-                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg" style={{ backgroundColor: '#6e348d' }}>
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg" style={{ backgroundColor: '#ffb320' }}>
                   <Truck className="h-8 w-8" strokeWidth={2} />
                 </div>
                 <h3 className="mb-2 text-xl font-semibold text-gray-900">Envío Rápido</h3>
@@ -178,7 +178,7 @@ export default function Landing() {
             </Card>
             <Card className="text-center border-none shadow-md hover:shadow-lg transition-shadow">
               <CardContent className="pt-6">
-                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg" style={{ backgroundColor: '#6e348d' }}>
+                <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg" style={{ backgroundColor: '#ffb320' }}>
                   <Shield className="h-8 w-8" strokeWidth={2} />
                 </div>
                 <h3 className="mb-2 text-xl font-semibold text-gray-900">Garantía Total</h3>

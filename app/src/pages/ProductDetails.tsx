@@ -135,9 +135,6 @@ export default function ProductDetails() {
 
             <div className="mb-6 flex items-baseline gap-3">
               <span className="text-4xl font-bold" style={{ color: '#6e348d' }}>${product.price.toFixed(2)}</span>
-              {typeof product.stock !== 'undefined' && (
-                <span className="text-sm" style={{ color: '#6b7280' }}>Stock: {product.stock} unidades</span>
-              )}
             </div>
 
             <p className="mb-6" style={{ color: '#374151' }}>{product.description}</p>
@@ -168,10 +165,10 @@ export default function ProductDetails() {
               disabled={adding}
               className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               style={{
-                backgroundColor: adding ? '#5a2a72' : '#6e348d',
+                backgroundColor: adding ? '#ffb320' : '#6e348d',
                 color: 'white'
               }}
-              onMouseEnter={(e) => !adding && (e.currentTarget.style.backgroundColor = '#5a2a72')}
+              onMouseEnter={(e) => !adding && (e.currentTarget.style.backgroundColor = '#ffb320')}
               onMouseLeave={(e) => !adding && (e.currentTarget.style.backgroundColor = '#6e348d')}
             >
               {adding ? (
