@@ -72,6 +72,17 @@ export default function Chat() {
     }
   }, [isOpen]);
 
+  // Bloquear scroll del body cuando el chat está abierto en móvil
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
   // sincroniza estado del avatar con escritura/respuesta
   useEffect(() => {
     if (isTyping) {
@@ -230,13 +241,13 @@ export default function Chat() {
       <Button
         onClick={toggleChat}
         size="icon"
-        className={`fixed bottom-6 right-6 z-40 h-16 w-16 rounded-full text-white shadow-xl transition-all hover:scale-110 ${
+        className={`fixed bottom-4 right-4 z-40 h-14 w-14 rounded-full text-white shadow-xl transition-all hover:scale-110 sm:bottom-6 sm:right-6 sm:h-16 sm:w-16 ${
           isOpen ? "scale-0" : "scale-100"
         }`}
         style={{ backgroundColor: "#6e348d" }}
         aria-label="Abrir chat de ayuda"
       >
-        <MessageCircle className="h-8 w-8" strokeWidth={2.5} fill="white" />
+        <MessageCircle className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.5} fill="white" />
         {messages.length > 0 && !isOpen && (
           <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-bold shadow-md">
             {messages.filter((m) => m.sender === "assistant").length}
@@ -247,17 +258,24 @@ export default function Chat() {
       {/* Chat Window */}
       {isOpen && (
         <Card
-          className={`fixed z-50 flex overflow-hidden shadow-2xl transition-all ${
+          className={`fixed z-50 flex overflow-hidden shadow-2xl transition-all rounded-none sm:rounded-lg ${
             isExpanded
-              ? "inset-6 w-auto h-auto"
-              : "bottom-6 right-6 h-[600px] max-w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)]"
-          } ${!isExpanded && (showConversations ? "w-[700px]" : "w-[500px]")}`}
+              ? "inset-2 sm:inset-6 w-auto h-auto rounded-lg"
+              : "inset-0 sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[600px] sm:max-w-[calc(100vw-3rem)] sm:max-h-[calc(100vh-3rem)] top-[-1px]"
+          } ${!isExpanded && "sm:w-[500px] md:w-[500px]"} ${!isExpanded && showConversations && "md:w-[700px]"}`}
         >
           {/* Conversation List Sidebar */}
           {showConversations && (
-            <div className="w-[280px] flex-shrink-0">
-              <ConversationList />
-            </div>
+            <>
+              {/* Overlay para móvil */}
+              <div
+                className="absolute inset-0 bg-black/50 z-10 sm:hidden"
+                onClick={() => setShowConversations(false)}
+              />
+              <div className="absolute inset-y-0 left-0 w-[280px] z-20 sm:relative sm:z-auto flex-shrink-0 bg-white">
+                <ConversationList />
+              </div>
+            </>
           )}
 
           {/* Main Chat Area */}
@@ -306,7 +324,7 @@ export default function Chat() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors"
+                  className="hidden sm:flex h-9 w-9 text-white hover:bg-white/20 hover:text-white transition-colors"
                   title={isExpanded ? "Modo ventana" : "Expandir"}
                 >
                   {isExpanded ? (
