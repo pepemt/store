@@ -1,12 +1,11 @@
-"""
-Rutas de la API para obtener imágenes desde OCI Object Storage (S3-compatible).
-"""
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import logging
 from io import BytesIO
+from pathlib import Path
+from diskcache import Cache
 
 try:
     from PIL import Image
@@ -17,6 +16,11 @@ except ImportError:
 from .s3_service import S3Service
 
 logger = logging.getLogger(__name__)
+
+# Inicializar cache de disco (1GB de límite, TTL de 24 horas por defecto)
+CACHE_DIR = Path("/tmp/image_cache")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+image_cache = Cache(str(CACHE_DIR), size_limit=1 * 1024**3)  # 1GB
 
 router = APIRouter()
 
@@ -252,6 +256,22 @@ async def get_image_url(
         )
 
 
+@router.options("/{image_key:path}")
+async def options_image(image_key: str):
+    """
+    Maneja preflight requests de CORS para imágenes.
+    """
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+
 @router.get("/{image_key:path}")
 async def get_image(
     image_key: str,
@@ -262,7 +282,7 @@ async def get_image(
 ):
     """
     Obtiene una imagen directamente desde S3 y la sirve como respuesta.
-    Optimizado con cache headers y redimensionamiento on-the-fly.
+    Optimizado con cache en disco, async I/O y streaming.
 
     Args:
         image_key: Clave de la imagen en S3 (ej: 'products/product1.jpg')
@@ -275,21 +295,12 @@ async def get_image(
         Imagen como StreamingResponse con headers de caché
     """
     try:
-        # Verificar que el bucket existe
+        # Verificar que el bucket existe (solo una vez al inicio)
         bucket_exists = S3Service.bucket_exists()
         if not bucket_exists:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
-            )
-
-        # Obtener imagen desde S3
-        image_data = S3Service.get_image_object(image_key)
-
-        if not image_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Imagen no encontrada: {image_key}"
             )
 
         # Determinar content type basado en la extensión
@@ -301,7 +312,48 @@ async def get_image(
         elif image_key.lower().endswith('.webp'):
             content_type = "image/webp"
 
-        # Redimensionar si se solicita y PIL está disponible
+        # Generar cache key única (incluye dimensiones y quality)
+        cache_key = f"{image_key}:{w or ''}:{h or ''}:{quality}"
+
+        # 1. BUSCAR EN CACHE PRIMERO
+        cached_data = image_cache.get(cache_key)
+        if cached_data is not None:
+            logger.debug(f"Cache HIT: {cache_key}")
+
+            # Preparar headers con indicador de cache
+            headers = {
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "X-Cache": "HIT",
+                "ETag": f'"{cache_key}"',
+                # Headers CORS para permitir fetch desde el frontend
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            }
+
+            if download:
+                filename = image_key.split('/')[-1]
+                headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+            return StreamingResponse(
+                BytesIO(cached_data),
+                media_type=content_type,
+                headers=headers
+            )
+
+        # 2. CACHE MISS - Descargar desde S3 (ASYNC)
+        logger.debug(f"Cache MISS: {cache_key}")
+
+        # Descargar imagen de forma asíncrona (no bloquea el event loop)
+        image_data = await S3Service.get_image_object_async(image_key)
+
+        if not image_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Imagen no encontrada: {image_key}"
+            )
+
+        # 3. REDIMENSIONAR SI ES NECESARIO
         if (w or h) and HAS_PIL:
             try:
                 img = Image.open(BytesIO(image_data))
@@ -309,7 +361,7 @@ async def get_image(
 
                 # Calcular dimensiones manteniendo aspect ratio
                 if w and h:
-                    # Ambos especificados: redimensionar a tamaño exacto (puede distorsionar)
+                    # Ambos especificados: redimensionar a tamaño exacto
                     new_size = (w, h)
                 elif w:
                     # Solo ancho: calcular alto manteniendo ratio
@@ -342,12 +394,22 @@ async def get_image(
                 logger.warning(f"Error al redimensionar imagen, sirviendo original: {e}")
                 # Si falla el redimensionamiento, servir imagen original
 
-        # Preparar headers optimizados
+        # 4. GUARDAR EN CACHE (TTL de 24 horas)
+        try:
+            image_cache.set(cache_key, image_data, expire=86400)
+            logger.debug(f"Imagen cacheada: {cache_key} ({len(image_data)} bytes)")
+        except Exception as e:
+            logger.warning(f"Error al cachear imagen: {e}")
+
+        # 5. PREPARAR RESPUESTA
         headers = {
-            # Cache por 1 año (las imágenes de productos no cambian frecuentemente)
             "Cache-Control": "public, max-age=31536000, immutable",
-            # ETag para validación de caché (incluir dimensiones si se redimensionó)
-            "ETag": f'"{image_key}-{len(image_data)}-{w or ""}-{h or ""}"',
+            "X-Cache": "MISS",
+            "ETag": f'"{cache_key}"',
+            # Headers CORS para permitir fetch desde el frontend
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
         }
 
         if download:

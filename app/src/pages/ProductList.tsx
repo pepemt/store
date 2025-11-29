@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Search, Star, ShoppingCart, Loader, Filter, X } from 'lucide-react'
-import { productService } from '../services/productService'
+import { useProducts, useCategories } from '../hooks/useProducts'
 import { useCart } from '../context/CartContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
+import CachedImage from '../components/CachedImage'
 
 interface Product {
   id: string | number
@@ -22,67 +23,31 @@ export default function ProductList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { add: addToCart } = useCart()
 
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [categories, setCategories] = useState<string[]>([])
-  const [loadingCategories, setLoadingCategories] = useState(true)
-  const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || '')
+  const selectedCategory = searchParams.get('category') || ''
 
-  // Cargar categorías al montar el componente
-  useEffect(() => {
-    loadCategories()
-  }, [])
+  // Usar React Query para productos (con cache automático)
+  const {
+    data: productsData,
+    isLoading: loading,
+    error: productsError,
+  } = useProducts({
+    page,
+    per_page: 12,
+    search: searchParams.get('q') || undefined,
+    category: selectedCategory || undefined,
+  })
 
-  // Sincronizar categoría seleccionada con searchParams
-  useEffect(() => {
-    const categoryParam = searchParams.get('category') || ''
-    setSelectedCategory(categoryParam)
-    const qParam = searchParams.get('q') || ''
-    setSearchQuery(qParam)
-  }, [searchParams])
+  // Usar React Query para categorías (cache de 1 hora)
+  const {
+    data: categories = [],
+    isLoading: loadingCategories,
+  } = useCategories()
 
-  // Recargar productos cuando cambian los parámetros de búsqueda o página
-  useEffect(() => {
-    loadProducts()
-  }, [page, searchParams])
-
-  const loadCategories = async () => {
-    try {
-      setLoadingCategories(true)
-      const cats = await productService.getCategories()
-      setCategories(cats)
-    } catch (err) {
-      console.error('Error al cargar categorías:', err)
-    } finally {
-      setLoadingCategories(false)
-    }
-  }
-
-  const loadProducts = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const q = searchParams.get('q') || ''
-      const category = searchParams.get('category') || ''
-      const data = await productService.getProducts({
-        page,
-        per_page: 12,
-        search: q,
-        category: category || undefined
-      })
-      setProducts(data.products || [])
-      setTotalPages(data.total_pages || 1)
-    } catch (err: any) {
-      setError('Error al cargar productos')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const products = productsData?.products || []
+  const totalPages = productsData?.total_pages || 1
+  const error = productsError ? 'Error al cargar productos' : ''
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,7 +63,6 @@ export default function ProductList() {
   }
 
   const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category)
     const params: Record<string, string> = {}
     if (searchQuery.trim()) {
       params.q = searchQuery.trim()
@@ -111,7 +75,6 @@ export default function ProductList() {
   }
 
   const clearFilters = () => {
-    setSelectedCategory('')
     setSearchQuery('')
     setSearchParams({})
     setPage(1)
@@ -258,9 +221,10 @@ export default function ProductList() {
                   >
                     <Link to={`/product/${product.id}`}>
                       <div className="relative aspect-square overflow-hidden bg-gray-100">
-                        <img
+                        <CachedImage
                           src={image}
                           alt={name}
+                          fallbackSrc={getFallbackImageUrl()}
                           loading="lazy"
                           className="h-full w-full object-cover transition-transform group-hover:scale-110"
                         />

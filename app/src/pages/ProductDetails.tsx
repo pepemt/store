@@ -2,53 +2,33 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Star, ShoppingCart, Package, Shield, Truck, Loader, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { productService } from '../services/productService'
+import { useProduct } from '../hooks/useProducts'
 import { useCart } from '../context/CartContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
-
-interface Product {
-  id: string | number
-  name?: string
-  title?: string
-  description?: string
-  price: number
-  images?: string[]
-  rating?: number
-  category?: string
-}
+import CachedImage from '../components/CachedImage'
 
 export default function ProductDetails() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { add: addToCart } = useCart()
 
-  const [product, setProduct] = useState<Product | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [adding, setAdding] = useState(false)
 
+  // Usar React Query para obtener producto (con cache de 10 minutos)
+  const {
+    data: product,
+    isLoading: loading,
+    error: productError,
+  } = useProduct(id)
+
+  const error = productError ? 'Producto no encontrado' : ''
+
   useEffect(() => {
     if (id) {
-      window.scrollTo({ top: 0, behavior: 'smooth' }) 
-      loadProduct()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [id])
-
-
-  const loadProduct = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const data = await productService.getProductById(id!)
-      setProduct(data)
-    } catch (err: any) {
-      setError('Producto no encontrado')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleAddToCart = async () => {
     if (!product) return
@@ -106,7 +86,13 @@ export default function ProductDetails() {
       <div className="container mx-auto px-4 py-8">
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-8">
-            <img src={image} alt={name} loading="eager" className="w-full rounded-lg object-contain" />
+            <CachedImage
+              src={image}
+              alt={name}
+              fallbackSrc={getFallbackImageUrl()}
+              loading="eager"
+              className="w-full rounded-lg object-contain"
+            />
           </div>
 
           <div>

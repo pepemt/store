@@ -1,22 +1,16 @@
-"""
-Servicio para manejar operaciones con OCI Object Storage (S3-compatible).
-"""
 import os
 import logging
-from typing import Optional
-from urllib.parse import urlparse
-from io import BytesIO
+from typing import Optional, AsyncIterator
 import requests
 import boto3
+import aioboto3
 from botocore.client import Config
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
 
-class S3Service:
-    """Servicio para interactuar con OCI Object Storage (S3-compatible)."""
-    
+class S3Service:    
     _client = None
     _bucket_name = None
     _endpoint_url = None
@@ -352,4 +346,102 @@ class S3Service:
         except Exception as e:
             logger.error(f"Error inesperado al subir imagen: {e}")
             return False
+
+    @classmethod
+    def _get_s3_config(cls) -> dict:
+        """
+        Obtiene la configuración de S3 como diccionario para reutilizar.
+
+        Returns:
+            Diccionario con configuración de S3
+        """
+        if cls._endpoint_url is None or cls._bucket_name is None:
+            cls.initialize()
+
+        return {
+            'endpoint_url': cls._endpoint_url,
+            'aws_access_key_id': os.getenv("STORE_S3_ACCESS_KEY_ID"),
+            'aws_secret_access_key': os.getenv("STORE_S3_SECRET_ACCESS_KEY"),
+            'region_name': os.getenv("STORE_S3_REGION", "us-chicago-1"),
+            'config': Config(signature_version='s3v4'),
+            'use_ssl': True,
+            'verify': True
+        }
+
+    @classmethod
+    async def get_image_object_async(cls, image_key: str) -> Optional[bytes]:
+        """
+        Obtiene el contenido de una imagen desde S3 usando async I/O (no bloquea el event loop).
+
+        Args:
+            image_key: Clave de la imagen en S3
+
+        Returns:
+            Contenido de la imagen en bytes o None si hay error
+        """
+        try:
+            bucket = cls.get_bucket_name()
+            s3_config = cls._get_s3_config()
+
+            # Crear sesión async
+            session = aioboto3.Session()
+            async with session.client('s3', **s3_config) as s3_client:
+                response = await s3_client.get_object(Bucket=bucket, Key=image_key)
+
+                # Leer el contenido del stream async
+                async with response['Body'] as stream:
+                    return await stream.read()
+
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'NoSuchKey':
+                logger.warning(f"Imagen no encontrada (async): {image_key}")
+            elif error_code == 'NoSuchBucket':
+                logger.error(f"Bucket '{bucket}' no existe en S3 (async)")
+            else:
+                logger.error(f"Error al obtener imagen async {image_key}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error inesperado al obtener imagen async: {e}")
+            return None
+
+    @classmethod
+    async def get_image_stream_async(cls, image_key: str, chunk_size: int = 8192) -> AsyncIterator[bytes]:
+        """
+        Obtiene una imagen como stream async (no carga toda en memoria).
+
+        Args:
+            image_key: Clave de la imagen en S3
+            chunk_size: Tamaño de cada chunk en bytes
+
+        Yields:
+            Chunks de bytes de la imagen
+        """
+        try:
+            bucket = cls.get_bucket_name()
+            s3_config = cls._get_s3_config()
+
+            # Crear sesión async
+            session = aioboto3.Session()
+            async with session.client('s3', **s3_config) as s3_client:
+                response = await s3_client.get_object(Bucket=bucket, Key=image_key)
+
+                # Streamear el contenido en chunks
+                async with response['Body'] as stream:
+                    while True:
+                        chunk = await stream.read(chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
+
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'NoSuchKey':
+                logger.warning(f"Imagen no encontrada (stream async): {image_key}")
+            elif error_code == 'NoSuchBucket':
+                logger.error(f"Bucket '{bucket}' no existe en S3 (stream async)")
+            else:
+                logger.error(f"Error al streamear imagen async {image_key}: {e}")
+        except Exception as e:
+            logger.error(f"Error inesperado al streamear imagen async: {e}")
 
