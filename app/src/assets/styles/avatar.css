@@ -116,7 +116,7 @@
 .arm.right{
   right: 130px;
   top: 223px;
-  background: #dce6e8;
+  background: #c0cbcd;
   transform: rotate(-45deg);
   z-index: -1;
 }
@@ -130,7 +130,7 @@
   top: 287px; /* debajo del cuerpo */
 }
 .leg.left{ left: 150px; transform: rotate(15deg); z-index: 1; }
-.leg.right{ right: 160px; top: 284px; background: #dce6e8; transform: rotate(5deg); z-index: -1; }
+.leg.right{ right: 160px; top: 284px; background: #c0cbcd; transform: rotate(5deg); z-index: -1; }
 
 /* =================== ESTADOS =================== */
 

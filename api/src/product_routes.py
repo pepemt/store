@@ -109,7 +109,7 @@ async def _get_average_price(session, article_id: int) -> float:
     Precio promedio por article_id; si no hay transacciones, fallback estable.
     Todos los precios se multiplican por 590.
     """
-    PRICE_MULTIPLIER = 590.0
+    PRICE_MULTIPLIER = 1.0
     try:
         q = select(func.avg(Transaction.price)).where(Transaction.article_id == article_id)
         result = await session.execute(q)
