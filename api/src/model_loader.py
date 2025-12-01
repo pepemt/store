@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 # Deducción del PROJECT_ROOT asumiendo que este archivo vive en: store/api/src
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-LOCAL_MLFLOW_DIR = Path(
-    os.getenv("LOCAL_MLFLOW_DIR", PROJECT_ROOT / "src" / "models" / "mlruns")
-).resolve()
-
-DEFAULT_MODEL_URI = "runs:/439bdc0a9c71484f8f090eb39128afa1/model"
+DEFAULT_MODEL_URI = "runs:/51eecff67e2a4bfa9c5637708ca1303b/model"
 MLFLOW_MODEL_URI = os.getenv("MLFLOW_MODEL_URI", DEFAULT_MODEL_URI)
 
 
@@ -44,7 +40,12 @@ def _configure_s3_env() -> None:
 
 def _resolve_tracking_uri() -> str:
     """Return tracking URI, preferring env var and falling back to local folder."""
-    return os.getenv("MLFLOW_TRACKING_URI", f"file:{LOCAL_MLFLOW_DIR}")
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+    if not tracking_uri:
+        raise RuntimeError(
+            "MLFLOW_TRACKING_URI debe estar definido para acceder al servidor remoto"
+        )
+    return tracking_uri
 
 
 def _configure_mlflow() -> None:
