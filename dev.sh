@@ -20,6 +20,8 @@ ssh -i ./ssh-keys/private.pem \
     -L 5000:localhost:5000 \
     -L 5432:10.0.2.182:5432 \
     -L 1522:adb.us-chicago-1.oraclecloud.com:1522 \
+    -L 9000:localhost:9000 \
+    -L 9001:localhost:9001 \
     -N opc@100.86.170.123 &
 
 echo "[STRIPE] Iniciando Stripe webhook listener..."

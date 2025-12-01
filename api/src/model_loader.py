@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import os
-from functools import lru_cache
 from pathlib import Path
 
 import mlflow
+
+logger = logging.getLogger(__name__)
 
 # =========================
 #  CONFIGURACIÓN MLFLOW
@@ -52,13 +54,53 @@ def _configure_mlflow() -> None:
     mlflow.set_registry_uri(tracking_uri)
 
 
-@lru_cache(maxsize=1)
+# Variable global para el modelo precargado
+_model = None
+
+
 def get_model():
+    """Obtiene el modelo. Si no está precargado, lo carga ahora."""
+    global _model
+    if _model is None:
+        _model = _load_model()
+    return _model
+
+
+def _load_model():
+    """Carga el modelo desde MLflow."""
     _configure_mlflow()
     try:
+        logger.info(f"Cargando modelo desde: {MLFLOW_MODEL_URI}")
         model = mlflow.pyfunc.load_model(MLFLOW_MODEL_URI)
+        logger.info("Modelo cargado exitosamente")
+        return model
     except Exception as exc:
         raise RuntimeError(
             f"No se pudo cargar el modelo desde '{MLFLOW_MODEL_URI}': {exc}"
         ) from exc
-    return model
+
+
+async def preload_model():
+    """
+    Precarga el modelo de forma asíncrona durante el startup.
+    Esto evita que la primera petición tenga que esperar la descarga.
+    """
+    global _model
+    if _model is not None:
+        logger.info("Modelo ya está cargado, saltando precarga")
+        return
+
+    import asyncio
+    import concurrent.futures
+
+    logger.info("Iniciando precarga del modelo ML en segundo plano...")
+
+    # Ejecutar la carga en un thread pool para no bloquear el event loop
+    loop = asyncio.get_event_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        try:
+            _model = await loop.run_in_executor(pool, _load_model)
+            logger.info("Modelo ML precargado exitosamente")
+        except Exception as e:
+            logger.error(f"Error al precargar modelo ML: {e}")
+            # No lanzar excepción - el modelo se cargará cuando se necesite

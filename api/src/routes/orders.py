@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from database.lib import Database
 from database.models import Order, OrderItem
 
-from .config import setup_logging
+from ..config import setup_logging
 
 logger = setup_logging()
 router = APIRouter()

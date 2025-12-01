@@ -1,30 +1,31 @@
 import os
 from pathlib import Path
-from typing import List
 
-import pandas as pd
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
-from .auth_routes import router as auth_router
-from .cart_routes import router as cart_router
-from .chat_routes import router as chat_router
 from .config import setup_logging
-from .image_routes import router as image_router
-from .checkout_routes import router as checkout_router
-from .order_routes import router as order_router
-from .model_loader import MLFLOW_MODEL_URI, get_model
-from .product_routes import router as product_router
-from .products_model import router as products_model_router
+from .model_loader import MLFLOW_MODEL_URI, preload_model
 from .s3_service import S3Service
 from .stripe_service import StripeService
+
+# Importar routers desde el paquete routes
+from .routes import (
+    auth_router,
+    product_router,
+    cart_router,
+    order_router,
+    checkout_router,
+    chat_router,
+    image_router,
+    recommendations_router,
+)
+
 from database.lib import Database
-from images.lib import process_image_info
 
 load_dotenv()
 logger = setup_logging()
@@ -47,7 +48,7 @@ app.include_router(chat_router,     prefix="/api/v1/chat",     tags=["chat"])
 app.include_router(image_router,    prefix="/api/v1/images",   tags=["images"])
 app.include_router(checkout_router, prefix="/api/v1/checkout", tags=["checkout"])
 app.include_router(order_router,    prefix="/api/v1/orders",   tags=["orders"])
-app.include_router(products_model_router, prefix="/api/v1")
+app.include_router(recommendations_router, prefix="/api/v1", tags=["recommendations"])
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -87,17 +88,6 @@ if STATIC_DIR.exists() and STATIC_DIR.is_dir():
         return {"message": "Frontend not built. Run 'npm run build' in the app directory."}
 else:
     logger.warning("  Directorio static no encontrado. El frontend no estará disponible.")
-
-
-class RecommendRequest(BaseModel):
-    user_id: str
-    N: int = 10
-
-
-class Recommendation(BaseModel):
-    user_id: str
-    article_id: str
-    score: float
 
 
 def get_database_url() -> str:
@@ -150,6 +140,12 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"  Error al inicializar Stripe (puede continuar sin pagos): {e}")
 
+        # Precargar modelo ML en segundo plano
+        try:
+            await preload_model()
+        except Exception as e:
+            logger.warning(f"  Error al precargar modelo ML (se cargará cuando se necesite): {e}")
+
         # Log de rutas (útil para confirmar que /api/v1/cart/add existe)
         try:
             for r in app.router.routes:
@@ -190,44 +186,6 @@ async def health_check():
         return {"status": "healthy", "database": "connected", "message": "OK"}
     except Exception as e:
         return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
-
-
-@app.post("/recommend", response_model=List[Recommendation])
-def recommend(payload: RecommendRequest) -> List[Recommendation]:
-    """Entrega recomendaciones ALS usando el modelo registrado en MLflow."""
-
-    model = get_model()
-    df_input = pd.DataFrame(
-        [
-            {
-                "user_id": payload.user_id,
-                "N": payload.N,
-            }
-        ]
-    )
-
-    try:
-        recs_df = model.predict(df_input)
-    except Exception as exc:  # pragma: no cover - passthrough para FastAPI
-        raise HTTPException(status_code=500, detail=f"Error al generar recomendaciones: {exc}")
-
-    if recs_df.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No se encontraron recomendaciones para el usuario {payload.user_id}",
-        )
-
-    recommendations: List[Recommendation] = []
-    for _, row in recs_df.iterrows():
-        recommendations.append(
-            Recommendation(
-                user_id=str(row["user_id"]),
-                article_id=str(row["article_id"]),
-                score=float(row["score"]),
-            )
-        )
-
-    return recommendations
 
 
 def main():

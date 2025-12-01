@@ -8,9 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_
 from database.lib import Database
 from database.models import Article, Transaction
-
-# Opcional: URLs presignadas de S3 si está configurado
-from .s3_service import S3Service  # Si no hay S3_URL, hace fallback automático
+from ..s3_service import S3Service
 
 router = APIRouter()
 

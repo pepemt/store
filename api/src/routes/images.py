@@ -13,7 +13,7 @@ try:
 except ImportError:
     HAS_PIL = False
 
-from .s3_service import S3Service
+from ..s3_service import S3Service
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +63,12 @@ async def list_buckets():
     """
     try:
         buckets = S3Service.list_buckets()
-        
+
         return BucketListResponse(
             buckets=buckets,
             total=len(buckets)
         )
-        
+
     except Exception as e:
         logger.error(f"Error al listar buckets: {e}")
         raise HTTPException(
@@ -88,7 +88,7 @@ async def upload_image(
     Args:
         file: Archivo de imagen a subir
         image_key: Clave opcional para la imagen en S3. Si no se proporciona, se usa el nombre del archivo
-    
+
     Returns:
         Información sobre la subida de la imagen
     """
@@ -100,20 +100,20 @@ async def upload_image(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
             )
-        
+
         # Determinar el image_key (usar el nombre del archivo si no se proporciona)
         if not image_key:
             image_key = file.filename
-        
+
         if not image_key:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Debes proporcionar un nombre de archivo o una clave de imagen"
             )
-        
+
         # Leer el contenido del archivo
         image_data = await file.read()
-        
+
         # Determinar content type
         content_type = file.content_type or "image/jpeg"
         if not content_type.startswith("image/"):
@@ -128,26 +128,26 @@ async def upload_image(
                 content_type = "image/jpeg"
             else:
                 content_type = "image/jpeg"  # Default
-        
+
         # Subir la imagen
         success = S3Service.upload_image(image_key, image_data, content_type)
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al subir la imagen: {image_key}"
             )
-        
+
         # Generar URL presignada para la imagen subida
         url = S3Service.get_image_url(image_key, expires_in=3600)
-        
+
         return UploadImageResponse(
             success=True,
             message=f"Imagen subida exitosamente: {image_key}",
             image_key=image_key,
             url=url
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -165,11 +165,11 @@ async def list_images(
 ):
     """
     Lista todas las imágenes disponibles en S3.
-    
+
     Args:
         prefix: Prefijo para filtrar (ej: 'products/' para solo productos)
         max_keys: Número máximo de imágenes a retornar
-    
+
     Returns:
         Lista de claves de imágenes
     """
@@ -181,15 +181,15 @@ async def list_images(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
             )
-        
+
         images = S3Service.list_images(prefix=prefix, max_keys=max_keys)
-        
+
         return ImageListResponse(
             images=images,
             total=len(images),
             prefix=prefix or ""
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -207,11 +207,11 @@ async def get_image_url(
 ):
     """
     Obtiene una URL presignada para acceder a una imagen desde S3.
-    
+
     Args:
         image_key: Clave de la imagen en S3 (ej: 'products/product1.jpg')
         expires_in: Tiempo de expiración en segundos (default: 1 hora, max: 7 días)
-    
+
     Returns:
         URL presignada para acceder a la imagen
     """
@@ -223,29 +223,29 @@ async def get_image_url(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
             )
-        
+
         # Verificar que la imagen existe
         if not S3Service.image_exists(image_key):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Imagen no encontrada: {image_key}"
             )
-        
+
         # Generar URL presignada
         url = S3Service.get_image_url(image_key, expires_in)
-        
+
         if not url:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error al generar URL presignada"
             )
-        
+
         return ImageURLResponse(
             url=url,
             image_key=image_key,
             expires_in=expires_in
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -436,10 +436,10 @@ async def get_image(
 async def check_image_exists(image_key: str):
     """
     Verifica si una imagen existe en S3 sin descargarla.
-    
+
     Args:
         image_key: Clave de la imagen en S3
-    
+
     Returns:
         Status 200 si existe, 404 si no existe
     """
@@ -451,9 +451,9 @@ async def check_image_exists(image_key: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
             )
-        
+
         exists = S3Service.image_exists(image_key)
-        
+
         if exists:
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
@@ -464,7 +464,7 @@ async def check_image_exists(image_key: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Imagen no encontrada: {image_key}"
             )
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -473,4 +473,3 @@ async def check_image_exists(image_key: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al verificar imagen: {str(e)}"
         )
-

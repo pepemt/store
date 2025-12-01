@@ -16,7 +16,7 @@ MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
 ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg"}
 
 # Add agents directory to path
-agents_path = os.path.join(os.path.dirname(__file__), 'agents')
+agents_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'agents')
 if agents_path not in sys.path:
     sys.path.insert(0, agents_path)
 

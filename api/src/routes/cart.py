@@ -45,7 +45,7 @@ def _mock_price(article_id: int) -> float:
     # Opción A: precio fijo (como se ve en tu UI)
     return 0.01
 
-    # Opción B: precio determinista “bonito”
+    # Opción B: precio determinista "bonito"
     # return round(19.99 + (article_id % 80) * 0.5, 2)
 
 

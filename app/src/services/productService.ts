@@ -150,12 +150,22 @@ export const productService = {
         body: JSON.stringify({ user_id: userId, N: limit }),
       })
 
+      // Manejar 404 como "sin recomendaciones" (no como error)
+      if (response.status === 404) {
+        return []
+      }
+
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
         throw new Error(data.detail || 'Error al obtener recomendaciones')
       }
 
       const recommendations: UserRecommendation[] = await response.json()
+
+      // Si no hay recomendaciones, retornar vacío
+      if (!recommendations || recommendations.length === 0) {
+        return []
+      }
 
       // Obtener los productos completos en paralelo
       const products = await Promise.all(
@@ -171,7 +181,8 @@ export const productService = {
       return products.filter((p): p is Product => p !== null)
     } catch (error) {
       console.error('Error al obtener recomendaciones:', error)
-      throw error
+      // No relanzar - retornar vacío para no romper la UI
+      return []
     }
   },
 

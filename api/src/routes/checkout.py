@@ -11,8 +11,8 @@ from sqlalchemy import func
 from database.lib import Database
 from database.models import CartItem, Order, OrderItem, OrderStatus, Customer, Transaction
 
-from .stripe_service import StripeService
-from .config import setup_logging
+from ..stripe_service import StripeService
+from ..config import setup_logging
 
 logger = setup_logging()
 router = APIRouter()

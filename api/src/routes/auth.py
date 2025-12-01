@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 import logging
 
-from .auth import AuthService
+from ..auth import AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ async def login(request: LoginRequest):
     """
     try:
         result = await AuthService.authenticate_user(request.email, request.password)
-        
+
         if result["success"]:
             return AuthResponse(
                 success=True,
@@ -53,7 +53,7 @@ async def login(request: LoginRequest):
             )
         else:
             raise HTTPException(status_code=401, detail=result["error"])
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -73,7 +73,7 @@ async def signup_new_user(request: SignupNewUserRequest):
             age=request.age,
             postal_code=request.postal_code
         )
-        
+
         if result["success"]:
             return AuthResponse(
                 success=True,
@@ -82,7 +82,7 @@ async def signup_new_user(request: SignupNewUserRequest):
             )
         else:
             raise HTTPException(status_code=400, detail=result["error"])
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -101,7 +101,7 @@ async def signup_link_user(request: SignupLinkUserRequest):
             email=request.email,
             password=request.password
         )
-        
+
         if result["success"]:
             return AuthResponse(
                 success=True,
@@ -110,7 +110,7 @@ async def signup_link_user(request: SignupLinkUserRequest):
             )
         else:
             raise HTTPException(status_code=400, detail=result["error"])
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -124,7 +124,7 @@ async def get_user_info(customer_id: str):
     """
     try:
         user_info = await AuthService.get_user_by_id(customer_id)
-        
+
         if user_info:
             return {
                 "success": True,
@@ -132,7 +132,7 @@ async def get_user_info(customer_id: str):
             }
         else:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -149,7 +149,7 @@ async def get_unlinked_customers(limit: int = 10, offset: int = 0):
         from database.lib import Database
         from database.models import Customer
         from sqlalchemy import select
-        
+
         async with Database.get_session() as session:
             result = await session.execute(
                 select(Customer)
@@ -158,7 +158,7 @@ async def get_unlinked_customers(limit: int = 10, offset: int = 0):
                 .offset(offset)
             )
             customers = result.scalars().all()
-            
+
             return {
                 "success": True,
                 "customers": [
@@ -171,7 +171,7 @@ async def get_unlinked_customers(limit: int = 10, offset: int = 0):
                     for customer in customers
                 ]
             }
-            
+
     except Exception as e:
         logger.error(f"Error al obtener usuarios no vinculados: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
