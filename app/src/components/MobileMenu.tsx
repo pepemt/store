@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, User, Settings, Package, LogOut, LogIn, UserPlus } from 'lucide-react'
+import { X, User, Settings, Package, LogOut, LogIn, UserPlus, ClipboardList } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 interface MobileMenuProps {
@@ -90,6 +90,13 @@ export default function MobileMenu({ open, onClose }: MobileMenuProps) {
                 >
                   <User className="h-5 w-5" />
                   <span>Perfil</span>
+                </button>
+                <button
+                  onClick={() => go('/orders')}
+                  className="flex w-full items-center gap-3 rounded-md px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
+                >
+                  <ClipboardList className="h-5 w-5" />
+                  <span>Mis Pedidos</span>
                 </button>
                 <button
                   onClick={() => go('/settings')}

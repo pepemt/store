@@ -18,6 +18,10 @@ import Cart from './pages/Cart'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Checkout from './pages/Checkout'
+import CheckoutSuccess from './pages/CheckoutSuccess'
+import CheckoutCancel from './pages/CheckoutCancel'
+import Orders from './pages/Orders'
+import OrderDetail from './pages/OrderDetail'
 import SignupSuccess from './pages/SignupSuccess'
 
 function App() {
@@ -49,6 +53,24 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <Checkout />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="/checkout/success" element={<CheckoutSuccess />} />
+                  <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+                  <Route
+                    path="/orders"
+                    element={
+                      <ProtectedRoute>
+                        <Orders />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/orders/:id"
+                    element={
+                      <ProtectedRoute>
+                        <OrderDetail />
                       </ProtectedRoute>
                     }
                   />

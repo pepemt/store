@@ -18,6 +18,8 @@ export const config = {
   PRODUCTS_URL: `${API_BASE_URL}/api/v1/products`,
   CART_URL: `${API_BASE_URL}/api/v1/cart`,
   IMAGES_URL: `${API_BASE_URL}/api/v1/images`,
+  CHECKOUT_URL: `${API_BASE_URL}/api/v1/checkout`,
+  ORDERS_URL: `${API_BASE_URL}/api/v1/orders`,
 }
 
 export const getProductImageUrl = (productId: string | null | undefined): string | null => {

@@ -91,6 +91,12 @@ export default function Header() {
                     <span className="hidden xl:block">{user.name}</span>
                   </Link>
                 </Button>
+                <Button variant="ghost" asChild>
+                  <Link to="/orders" className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    <span className="hidden xl:block">Pedidos</span>
+                  </Link>
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"

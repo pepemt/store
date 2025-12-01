@@ -1,8 +1,17 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, Integer, Float, Date, ForeignKey, Index, DateTime, Boolean
+from enum import Enum as PyEnum
+from sqlalchemy import String, Text, Integer, Float, Date, ForeignKey, Index, DateTime, Boolean, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.base import Base
+
+
+class OrderStatus(str, PyEnum):
+    """Estados posibles de una orden."""
+    PENDING = "pending"
+    PAID = "paid"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
 
 
 class Article(Base):
@@ -139,3 +148,84 @@ class CartItem(Base):
 
     def __repr__(self) -> str:
         return f"<CartItem(id={self.id}, customer_id='{self.customer_id[:10]}...', article_id={self.article_id}, quantity={self.quantity})>"
+
+
+class Order(Base):
+    """Modelo para órdenes de compra."""
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    customer_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("customers.customer_id"), nullable=False
+    )
+
+    # Stripe IDs
+    stripe_checkout_session_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
+    stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+
+    # Estado y montos
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=OrderStatus.PENDING.value
+    )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="usd")
+    total_amount: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Relaciones
+    customer: Mapped["Customer"] = relationship("Customer", backref="orders")
+    items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="order", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index('idx_order_customer_id', 'customer_id'),
+        Index('idx_order_status', 'status'),
+        Index('idx_order_stripe_session', 'stripe_checkout_session_id'),
+        Index('idx_order_created_at', 'created_at'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Order(id={self.id}, customer_id='{self.customer_id[:10]}...', status='{self.status}', total={self.total_amount})>"
+
+
+class OrderItem(Base):
+    """Modelo para items de una orden (snapshot del producto al momento de compra)."""
+    __tablename__ = "order_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("orders.id"), nullable=False
+    )
+    article_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("articles.article_id"), nullable=False
+    )
+
+    # Snapshot del producto al momento de compra
+    product_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[float] = mapped_column(Float, nullable=False)
+    total_price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Relaciones
+    order: Mapped["Order"] = relationship("Order", back_populates="items")
+    article: Mapped["Article"] = relationship("Article")
+
+    __table_args__ = (
+        Index('idx_orderitem_order_id', 'order_id'),
+        Index('idx_orderitem_article_id', 'article_id'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<OrderItem(id={self.id}, order_id={self.order_id}, product='{self.product_name}', qty={self.quantity})>"

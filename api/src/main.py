@@ -13,10 +13,13 @@ from .cart_routes import router as cart_router
 from .product_routes import router as product_router
 from .chat_routes import router as chat_router
 from .image_routes import router as image_router
+from .checkout_routes import router as checkout_router
+from .order_routes import router as order_router
 
 from database.lib import Database
 from images.lib import process_image_info
 from .s3_service import S3Service
+from .stripe_service import StripeService
 
 load_dotenv()
 logger = setup_logging()
@@ -33,11 +36,13 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(auth_router,    prefix="/api/v1/auth",     tags=["authentication"])
-app.include_router(cart_router,    prefix="/api/v1/cart",     tags=["cart"])
-app.include_router(product_router, prefix="/api/v1/products", tags=["products"])
-app.include_router(chat_router,    prefix="/api/v1/chat",     tags=["chat"])
-app.include_router(image_router,   prefix="/api/v1/images",   tags=["images"])
+app.include_router(auth_router,     prefix="/api/v1/auth",     tags=["authentication"])
+app.include_router(cart_router,     prefix="/api/v1/cart",     tags=["cart"])
+app.include_router(product_router,  prefix="/api/v1/products", tags=["products"])
+app.include_router(chat_router,     prefix="/api/v1/chat",     tags=["chat"])
+app.include_router(image_router,    prefix="/api/v1/images",   tags=["images"])
+app.include_router(checkout_router, prefix="/api/v1/checkout", tags=["checkout"])
+app.include_router(order_router,    prefix="/api/v1/orders",   tags=["orders"])
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -121,6 +126,13 @@ async def startup_event():
             logger.info("✅ Servicio S3 inicializado correctamente")
         except Exception as e:
             logger.warning(f"⚠️  Error al inicializar S3 Service (puede continuar sin S3): {e}")
+
+        # Stripe (opcional)
+        try:
+            StripeService.initialize()
+            logger.info("✅ Servicio Stripe inicializado correctamente")
+        except Exception as e:
+            logger.warning(f"⚠️  Error al inicializar Stripe (puede continuar sin pagos): {e}")
 
         # Log de rutas (útil para confirmar que /api/v1/cart/add existe)
         try:

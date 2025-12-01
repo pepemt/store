@@ -242,7 +242,7 @@ export default function Landing() {
                         <CardTitle className="line-clamp-2 text-base">{name}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="mb-3 line-clamp-2 text-sm text-gray-600">
+                        <p className="line-clamp-2 text-sm text-gray-600">
                           {p.description}
                         </p>
                       </CardContent>
@@ -250,11 +250,11 @@ export default function Landing() {
                         <span className="text-2xl font-bold" style={{ color: '#6e348d' }}>
                           ${p.price ? p.price.toFixed(2) : '0.00'}
                         </span>
-                        {typeof p.stock !== 'undefined' && (
+                        {/* {typeof p.stock !== 'undefined' && (
                           <Badge variant="secondary" className="text-xs shadow-sm">
                             Stock: {p.stock}
                           </Badge>
-                        )}
+                        )} */}
                       </CardFooter>
                     </Card>
                   </Link>
