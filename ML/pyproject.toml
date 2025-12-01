@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11,<3.13"
 dependencies = [
+    "boto3>=1.40.61",
+    "diskcache>=5.6.3",
     "mlflow>=3.5.1",
     "pyspark<=3.5.3",
     "python-dotenv>=1.1.1",
