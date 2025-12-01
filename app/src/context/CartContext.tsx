@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react'
 import { useAuth } from './AuthContext'
@@ -73,9 +74,26 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null)
   const [mutating, setMutating] = useState(false)
 
-  const normalizeCartItem = useCallback(async (item: any): Promise<CartItem> => {
+  // Cache de productos para evitar llamadas repetidas
+  const productCache = useRef<Map<string, Product>>(new Map())
+
+  const getProductCached = useCallback(async (articleId: string): Promise<Product | null> => {
+    if (productCache.current.has(articleId)) {
+      return productCache.current.get(articleId)!
+    }
     try {
-      const product = (await productService.getProductById(item.article_id)) as Product
+      const product = await productService.getProductById(articleId) as Product
+      productCache.current.set(articleId, product)
+      return product
+    } catch {
+      return null
+    }
+  }, [])
+
+  const normalizeCartItem = useCallback(async (item: any): Promise<CartItem> => {
+    const product = await getProductCached(item.article_id)
+
+    if (product) {
       const images = Array.isArray(product.images) ? product.images : undefined
       return {
         id: product.id,
@@ -89,21 +107,20 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         rating: product.rating,
         department: product.department,
       }
-    } catch (err) {
-      console.warn('No se pudo enriquecer item de carrito', err)
-      return {
-        id: item.article_id,
-        articleId: item.article_id,
-        qty: item.quantity,
-        name: item.article_name || 'Producto',
-        description: '',
-        price: 0,
-        images: buildImageList(item.article_id),
-      }
     }
-  }, [])
 
-  const loadCart = useCallback(async () => {
+    return {
+      id: item.article_id,
+      articleId: item.article_id,
+      qty: item.quantity,
+      name: item.article_name || 'Producto',
+      description: '',
+      price: 0,
+      images: buildImageList(item.article_id),
+    }
+  }, [getProductCached])
+
+  const loadCart = useCallback(async (showLoading = true) => {
     if (!customerId) {
       setItems([])
       setLoading(false)
@@ -111,8 +128,9 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       return
     }
 
-    setLoading(true)
+    if (showLoading) setLoading(true)
     setError(null)
+
     try {
       const summary = await cartService.getCart(customerId)
       const enriched = await Promise.all(
@@ -138,48 +156,147 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     }
   }
 
-  const withMutation = async (fn: () => Promise<any>): Promise<void> => {
+  // Actualización optimista de cantidad
+  const updateQty = useCallback(async (id: string | number, qty: number): Promise<void> => {
+    ensureAuth()
+    const safeQty = Math.max(0, Number(qty) || 0)
+    const articleId = String(id)
+
+    // Guardar estado anterior para rollback
+    const previousItems = [...items]
+
+    // Si qty es 0, eliminar el item
+    if (safeQty === 0) {
+      setItems(prev => prev.filter(item => String(item.articleId) !== articleId))
+    } else {
+      // Actualización optimista inmediata
+      setItems(prev => prev.map(item =>
+        String(item.articleId) === articleId
+          ? { ...item, qty: safeQty }
+          : item
+      ))
+    }
+
     setMutating(true)
     setError(null)
+
     try {
-      await fn()
-      await loadCart()
+      await cartService.updateCartItem(customerId!, articleId, safeQty)
     } catch (err: any) {
-      console.error('Accion del carrito fallida:', err)
+      // Rollback en caso de error
+      setItems(previousItems)
       setError(err.message || 'No se pudo actualizar el carrito.')
       throw err
     } finally {
       setMutating(false)
     }
-  }
+  }, [customerId, items])
 
-  const add = async (product: Product, qty = 1): Promise<void> => {
+  // Agregar producto con actualización optimista
+  const add = useCallback(async (product: Product, qty = 1): Promise<void> => {
     ensureAuth()
     if (!product?.id) {
       throw new Error('Producto inválido para carrito.')
     }
-    await withMutation(() =>
-      cartService.addToCart(customerId!, String(product.id), qty)
-    )
-  }
 
-  const updateQty = async (id: string | number, qty: number): Promise<void> => {
-    ensureAuth()
-    const safeQty = Math.max(0, Number(qty) || 0)
-    await withMutation(() =>
-      cartService.updateCartItem(customerId!, String(id), safeQty)
-    )
-  }
+    const articleId = String(product.id)
+    const previousItems = [...items]
 
-  const remove = async (id: string | number): Promise<void> => {
-    ensureAuth()
-    await withMutation(() => cartService.removeFromCart(customerId!, String(id)))
-  }
+    // Actualización optimista
+    setItems(prev => {
+      const existingIndex = prev.findIndex(item => String(item.articleId) === articleId)
 
-  const clear = async (): Promise<void> => {
+      if (existingIndex >= 0) {
+        // Incrementar cantidad si ya existe
+        return prev.map((item, idx) =>
+          idx === existingIndex
+            ? { ...item, qty: item.qty + qty }
+            : item
+        )
+      }
+
+      // Agregar nuevo item
+      const images = Array.isArray(product.images) ? product.images : undefined
+      const newItem: CartItem = {
+        id: product.id,
+        articleId: product.id,
+        qty,
+        name: product.name || product.title || 'Producto',
+        description: product.description,
+        price: product.price || 0,
+        images: buildImageList(product.id, images),
+        stock: product.stock,
+        rating: product.rating,
+        department: product.department,
+      }
+      return [...prev, newItem]
+    })
+
+    // Cachear producto
+    productCache.current.set(articleId, product)
+
+    setMutating(true)
+    setError(null)
+
+    try {
+      await cartService.addToCart(customerId!, articleId, qty)
+    } catch (err: any) {
+      setItems(previousItems)
+      setError(err.message || 'No se pudo agregar al carrito.')
+      throw err
+    } finally {
+      setMutating(false)
+    }
+  }, [customerId, items])
+
+  // Eliminar con actualización optimista
+  const remove = useCallback(async (id: string | number): Promise<void> => {
     ensureAuth()
-    await withMutation(() => cartService.clearCart(customerId!))
-  }
+    const articleId = String(id)
+    const previousItems = [...items]
+
+    // Buscar el item para obtener la cantidad total a eliminar
+    const itemToRemove = items.find(item => String(item.articleId) === articleId)
+    const qtyToRemove = itemToRemove?.qty || 1
+
+    // Actualización optimista
+    setItems(prev => prev.filter(item => String(item.articleId) !== articleId))
+
+    setMutating(true)
+    setError(null)
+
+    try {
+      await cartService.removeFromCart(customerId!, articleId, qtyToRemove)
+    } catch (err: any) {
+      setItems(previousItems)
+      setError(err.message || 'No se pudo eliminar del carrito.')
+      throw err
+    } finally {
+      setMutating(false)
+    }
+  }, [customerId, items])
+
+  // Limpiar carrito con actualización optimista
+  const clear = useCallback(async (): Promise<void> => {
+    ensureAuth()
+    const previousItems = [...items]
+
+    // Actualización optimista
+    setItems([])
+
+    setMutating(true)
+    setError(null)
+
+    try {
+      await cartService.clearCart(customerId!)
+    } catch (err: any) {
+      setItems(previousItems)
+      setError(err.message || 'No se pudo vaciar el carrito.')
+      throw err
+    } finally {
+      setMutating(false)
+    }
+  }, [customerId, items])
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + (item.price || 0) * (item.qty || 0), 0),
@@ -191,23 +308,23 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     [items]
   )
 
+  const contextValue = useMemo(() => ({
+    items,
+    add,
+    remove,
+    updateQty,
+    clear,
+    total,
+    count,
+    loading,
+    error,
+    mutating,
+    refresh: loadCart,
+    hasItems: items.length > 0,
+  }), [items, add, remove, updateQty, clear, total, count, loading, error, mutating, loadCart])
+
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        add,
-        remove,
-        updateQty,
-        clear,
-        total,
-        count,
-        loading,
-        error,
-        mutating,
-        refresh: loadCart,
-        hasItems: items.length > 0,
-      }}
-    >
+    <CartContext.Provider value={contextValue}>
       {children}
     </CartContext.Provider>
   )
