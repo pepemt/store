@@ -16,39 +16,30 @@ from .cart_routes import router as cart_router
 from .chat_routes import router as chat_router
 from .config import setup_logging
 from .image_routes import router as image_router
-<<<<<<< HEAD
 from .checkout_routes import router as checkout_router
 from .order_routes import router as order_router
-
-from database.lib import Database
-from images.lib import process_image_info
-from .s3_service import S3Service
-from .stripe_service import StripeService
-=======
 from .model_loader import MLFLOW_MODEL_URI, get_model
 from .product_routes import router as product_router
 from .products_model import router as products_model_router
 from .s3_service import S3Service
+from .stripe_service import StripeService
 from database.lib import Database
 from images.lib import process_image_info
->>>>>>> 861cea7446840b6e878e46d71c1708b2622d94cf
 
 load_dotenv()
 logger = setup_logging()
 
 app = FastAPI(title="Zenith API", version="0.1.0")
 
-# CORS (en dev dejamos * para evitar bloqueos; en prod lista dominios)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # en prod: ["http://localhost:5173", "https://tu-dominio"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 # Routers
-<<<<<<< HEAD
 app.include_router(auth_router,     prefix="/api/v1/auth",     tags=["authentication"])
 app.include_router(cart_router,     prefix="/api/v1/cart",     tags=["cart"])
 app.include_router(product_router,  prefix="/api/v1/products", tags=["products"])
@@ -56,14 +47,7 @@ app.include_router(chat_router,     prefix="/api/v1/chat",     tags=["chat"])
 app.include_router(image_router,    prefix="/api/v1/images",   tags=["images"])
 app.include_router(checkout_router, prefix="/api/v1/checkout", tags=["checkout"])
 app.include_router(order_router,    prefix="/api/v1/orders",   tags=["orders"])
-=======
-app.include_router(auth_router,    prefix="/api/v1/auth",     tags=["authentication"])
-app.include_router(cart_router,    prefix="/api/v1/cart",     tags=["cart"])
-app.include_router(product_router, prefix="/api/v1/products", tags=["products"])
-app.include_router(chat_router,    prefix="/api/v1/chat",     tags=["chat"])
-app.include_router(image_router,   prefix="/api/v1/images",   tags=["images"])
 app.include_router(products_model_router)
->>>>>>> 861cea7446840b6e878e46d71c1708b2622d94cf
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"
