@@ -423,7 +423,27 @@ async def semantic_product_search(
     # Step 1: Extract terms from query
     step_start = time.time()
     tokenizer = Tokenizer(min_length=2, languages=['en', 'es'])
+
+    # Log raw terms BEFORE tokenization
+    raw_terms = query.lower().split()
+    logger.info(f"   Raw query terms: {raw_terms}")
+
     query_terms = tokenizer.extract_terms(query)
+
+    # Log terms AFTER tokenization
+    logger.info(f"   Tokenized terms: {query_terms}")
+
+    # Identify and warn about removed terms
+    removed_terms = set(raw_terms) - set(query_terms) - {''}
+    if removed_terms:
+        # Check if any removed terms are critical gender terms
+        gender_terms = {'men', 'women', 'man', 'woman', 'male', 'female', 'unisex'}
+        removed_gender = removed_terms & gender_terms
+        if removed_gender:
+            logger.error(f"   ⚠️  CRITICAL: Gender terms removed: {removed_gender}")
+        else:
+            logger.debug(f"   Filtered terms (stopwords): {removed_terms}")
+
     logger.info(f"⏱️  [STEP 1] Term extraction: {time.time() - step_start:.2f}s → {len(query_terms)} terms: {query_terms}")
 
     if not query_terms:

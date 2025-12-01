@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from models import AgentState
 from llm_config import llm
 from tools import semantic_product_search
+from metadata_cache import get_metadata_cache
 
 logger = logging.getLogger(__name__)
 
@@ -75,36 +76,53 @@ Consider the conversation context when extracting search terms."""
         else:
             search_context = f"User query: {user_message}"
 
-        # Step 1: Extract key product attributes from user query
-        refinement_prompt = f"""Extract ONLY the product search attributes from this query. Ignore context, intentions, and extra information.
+        # Step 1: Get store context from metadata cache
+        metadata_cache = get_metadata_cache()
+        await metadata_cache.refresh()
+        store_context = metadata_cache.get_formatted_context()
 
+        # Step 2: Extract key product attributes from user query with store context
+        refinement_prompt = f"""You are a search query optimizer for a clothing store.
+
+STORE INVENTORY (use these exact terms when possible):
+{store_context}
+
+USER QUERY:
 {search_context}
 
-Extract:
-- Product type (e.g., "skirt", "sandals", "necklace", "shirt", "dress")
-- Color (if mentioned)
-- Gender (if mentioned: "men", "women", "unisex")
-- Key characteristics (e.g., "short", "pleated", "leather", "cotton", "casual", "elegant")
+TASK: Extract search terms as PLAIN TEXT separated by spaces.
 
-Return ONLY the essential search terms separated by spaces, in English.
-Focus on what the product IS, not what it's FOR or how it will be used.
+RULES:
+1. Output ONLY search terms separated by spaces (no JSON, no punctuation)
+2. For product types: include primary term + 1 synonym max (e.g., "trousers pants")
+3. ALWAYS include gender terms: men, women, unisex (NEVER omit these)
+4. Translate Spanish to English
+5. Match terms to our inventory categories when possible
+6. Maximum 2 synonyms per concept
 
-Examples:
-Input: "Recomiéndame collares bonitos"
-Output: necklace
+EXAMPLES:
 
-Input: "Sandalias para andar en mi casa para descansar de hombre negras"
-Output: sandals men black
+Input: "Recomiendame un pantalon negro para hombre"
+Output: trousers pants black men
+
+Input: "Sandalias elegantes de mujer"
+Output: sandals elegant women
+
+Input: "Vestido rojo corto"
+Output: dress red short
+
+Input: "Quiero una falda bonita"
+Output: skirt
+
+Input: "Camisa casual azul para hombre"
+Output: shirt casual blue men
 
 Input: Image shows "falda corta negra con pliegues"
 Output: skirt black short pleated
 
-Input: "Quiero algo como esto" + Image shows "vestido rojo elegante"
-Output: dress red elegant
+Now extract search terms (plain text only):"""
 
-Now extract the search terms:"""
-
-        logger.info("⏱️  Step 1: Calling LLM to refine query...")
+        logger.info("⏱️  Step 2: Calling LLM to refine query...")
         llm_start = time.time()
         try:
             import asyncio
@@ -131,8 +149,8 @@ Now extract the search terms:"""
             refined_query = user_message
             logger.info(f"   Fallback: using original query '{refined_query}'")
 
-        # Step 2: Use semantic search with refined query
-        logger.info(f"⏱️  Step 2: Calling semantic_product_search with refined query...")
+        # Step 3: Use semantic search with refined query
+        logger.info(f"⏱️  Step 3: Calling semantic_product_search with refined query...")
         search_start = time.time()
         products = await semantic_product_search(query=refined_query, limit=10)
         search_time = time.time() - search_start

@@ -11,6 +11,7 @@ from .checkout import router as checkout_router
 from .chat import router as chat_router
 from .images import router as image_router
 from .recommendations import router as recommendations_router
+from .metadata import router as metadata_router
 
 __all__ = [
     "auth_router",
@@ -21,4 +22,5 @@ __all__ = [
     "chat_router",
     "image_router",
     "recommendations_router",
+    "metadata_router",
 ]

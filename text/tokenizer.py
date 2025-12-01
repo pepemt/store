@@ -15,13 +15,23 @@ from stop_words import get_stop_words
 
 class Tokenizer:
     """Extract and normalize terms from text."""
-    
+
     # Punctuation to split on (excluding dots for acronyms)
     SPLIT_PATTERN = r'[,;:!?"\'()\[\]{}\\/|<>=+*&%$#@~\s]+'
-    
+
     # Patterns for acronym detection
     ACRONYM_ALL_CAPS = re.compile(r'^[A-Z]{2,}$')  # AI, ML, CPU
     ACRONYM_WITH_DOTS = re.compile(r'^[A-Z](?:\.[A-Z])+\.?$')  # A.I., M.L.
+
+    # Terms that should NEVER be removed as stopwords (gender, size terms)
+    PROTECTED_TERMS = {
+        # Gender terms in English
+        'men', 'women', 'man', 'woman', 'male', 'female', 'unisex',
+        # Gender terms in Spanish
+        'hombre', 'hombres', 'mujer', 'mujeres', 'masculino', 'femenino',
+        # Size terms that might be stopwords in some languages
+        'xs', 'xl', 'xxl',
+    }
     
     def __init__(self, min_length: int = 2, languages: List[str] = None):
         """
@@ -49,6 +59,9 @@ class Tokenizer:
             'item', 'product', 'new', 'sale', 'size', 'color',
             'tipo', 'producto', 'nuevo', 'oferta', 'talla', 'color',
         ])
+
+        # Remove protected terms from stopwords (gender, size terms must be preserved)
+        self.stopwords -= self.PROTECTED_TERMS
     
     def is_acronym(self, token: str) -> bool:
         """Check if token is an acronym."""

@@ -23,6 +23,7 @@ from .routes import (
     chat_router,
     image_router,
     recommendations_router,
+    metadata_router,
 )
 
 from database.lib import Database
@@ -49,6 +50,7 @@ app.include_router(image_router,    prefix="/api/v1/images",   tags=["images"])
 app.include_router(checkout_router, prefix="/api/v1/checkout", tags=["checkout"])
 app.include_router(order_router,    prefix="/api/v1/orders",   tags=["orders"])
 app.include_router(recommendations_router, prefix="/api/v1", tags=["recommendations"])
+app.include_router(metadata_router, prefix="/api/v1/metadata", tags=["metadata"])
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"
