@@ -16,7 +16,6 @@ class RecommendRequest(BaseModel):
     user_id: str
     N: int = 10
 
-
 class Recommendation(BaseModel):
     user_id: str
     article_id: str
@@ -27,7 +26,7 @@ class Recommendation(BaseModel):
 app = FastAPI(
     title="ALS Recommender API",
     version="1.0.0",
-    description="API para consumir el modelo ALS de recomendaciones registrado en MLflow (todo local).",
+    description=".",
 )
 
 

@@ -22,7 +22,7 @@ from pyspark.sql import DataFrame, SparkSession
 from scipy.sparse import coo_matrix, csr_matrix
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENV_PATH = PROJECT_ROOT.parent / ".env"
+ENV_PATH = PROJECT_ROOT / ".env"
 
 warnings.filterwarnings("ignore", category=UserWarning,module="pyspark")
 if ENV_PATH.exists():
