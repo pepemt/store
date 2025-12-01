@@ -6,7 +6,28 @@ cd "$SCRIPT_DIR"
 cleanup() {
     echo ""
     echo "⏹ Deteniendo todos los servicios..."
-    kill 0 2>/dev/null
+
+    jobs -p | while read pid; do
+        kill -TERM "$pid" 2>/dev/null
+    done
+
+    local timeout=5
+    local count=0
+    while [ $count -lt $timeout ]; do
+        if ! jobs -p | grep -q .; then
+            break
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
+
+    jobs -p | while read pid; do
+        kill -KILL "$pid" 2>/dev/null
+    done
+
+    wait 2>/dev/null
+
+    echo " Todos los servicios detenidos"
     exit 0
 }
 
@@ -36,7 +57,7 @@ echo "[STRIPE] Iniciando Stripe webhook listener..."
                 else
                     echo "STRIPE_WEBHOOK_SECRET=$secret" >> "$SCRIPT_DIR/.env"
                 fi
-                echo "[STRIPE] ✓ STRIPE_WEBHOOK_SECRET actualizado en .env"
+                echo "[STRIPE] STRIPE_WEBHOOK_SECRET actualizado en .env"
             fi
         fi
     done
