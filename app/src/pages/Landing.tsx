@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Truck, Shield, Star, ArrowRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Truck, Shield, Star, ArrowRight, Sparkles } from 'lucide-react'
 import { productService } from '../services/productService'
+import { useAuth } from '../context/AuthContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
@@ -20,8 +21,11 @@ interface Product {
 
 export default function Landing() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [featured, setFeatured] = useState<Product[]>([])
   const [featuredLoading, setFeaturedLoading] = useState(true)
+  const [recommendations, setRecommendations] = useState<Product[]>([])
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
 
   const slides = [
@@ -80,6 +84,29 @@ export default function Landing() {
     fetchFeatured()
   }, [])
 
+  // Cargar recomendaciones personalizadas cuando hay usuario
+  useEffect(() => {
+    async function fetchRecommendations() {
+      const customerId = user?.customer_id
+      if (!customerId) {
+        setRecommendations([])
+        return
+      }
+
+      try {
+        setRecommendationsLoading(true)
+        const products = await productService.getRecommendationsForUser(customerId, 8)
+        setRecommendations(products)
+      } catch (err) {
+        console.error('Error al cargar recomendaciones:', err)
+        setRecommendations([])
+      } finally {
+        setRecommendationsLoading(false)
+      }
+    }
+    fetchRecommendations()
+  }, [user?.customer_id])
+
   useEffect(() => {
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual"
@@ -93,6 +120,43 @@ export default function Landing() {
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length)
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
+
+  const ProductCard = ({ p }: { p: Product }) => {
+    const name = p.name || p.title || 'Producto'
+    const image = p.images?.[0] || getProductImageUrl(String(p.id)) || getFallbackImageUrl()
+    return (
+      <Link to={`/product/${p.id}`} className="group">
+        <Card className="overflow-hidden transition-shadow hover:shadow-lg">
+          <div className="relative aspect-square overflow-hidden bg-gray-100">
+            <img
+              src={image}
+              alt={name}
+              className="h-full w-full object-cover transition-transform group-hover:scale-110"
+            />
+            {p.rating && (
+              <Badge className="absolute right-2 top-2 bg-white text-gray-900 hover:bg-white shadow-sm">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
+                {p.rating}
+              </Badge>
+            )}
+          </div>
+          <CardHeader>
+            <CardTitle className="line-clamp-2 text-base">{name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="line-clamp-2 text-sm text-gray-600">
+              {p.description}
+            </p>
+          </CardContent>
+          <CardFooter className="flex items-center justify-between">
+            <span className="text-2xl font-bold" style={{ color: '#6e348d' }}>
+              ${p.price ? p.price.toFixed(2) : '0.00'}
+            </span>
+          </CardFooter>
+        </Card>
+      </Link>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -200,6 +264,46 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Personalized Recommendations - Only for logged in users */}
+      {user && (
+        <section className="py-16 bg-gradient-to-b from-purple-50 to-white">
+          <div className="container mx-auto px-4">
+            <div className="mb-12 text-center">
+              <div className="inline-flex items-center gap-2 mb-2">
+                <Sparkles className="h-6 w-6" style={{ color: '#6e348d' }} />
+                <h2 className="text-3xl font-bold text-gray-900">Recomendados para ti</h2>
+                <Sparkles className="h-6 w-6" style={{ color: '#6e348d' }} />
+              </div>
+              <p className="text-gray-600">Productos seleccionados especialmente para ti, {user.name?.split(' ')[0]}</p>
+            </div>
+
+            {recommendationsLoading ? (
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
+                <p className="mt-4 text-gray-600">Cargando recomendaciones...</p>
+              </div>
+            ) : recommendations.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {recommendations.map((p) => (
+                  <ProductCard key={p.id} p={p} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Explora más productos para obtener recomendaciones personalizadas</p>
+                <Button
+                  className="mt-4"
+                  onClick={() => navigate('/products')}
+                  style={{ backgroundColor: '#6e348d' }}
+                >
+                  Explorar productos
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Featured Products */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
@@ -215,51 +319,9 @@ export default function Landing() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {featured.map((p) => {
-                const name = p.name || p.title || 'Producto'
-                const image = p.images?.[0] || getProductImageUrl(String(p.id)) || getFallbackImageUrl()
-                return (
-                  <Link
-                    key={p.id}
-                    to={`/product/${p.id}`}
-                    className="group"
-                  >
-                    <Card className="overflow-hidden transition-shadow hover:shadow-lg">
-                      <div className="relative aspect-square overflow-hidden bg-gray-100">
-                        <img
-                          src={image}
-                          alt={name}
-                          className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                        />
-                        {p.rating && (
-                          <Badge className="absolute right-2 top-2 bg-white text-gray-900 hover:bg-white shadow-sm">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
-                            {p.rating}
-                          </Badge>
-                        )}
-                      </div>
-                      <CardHeader>
-                        <CardTitle className="line-clamp-2 text-base">{name}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="line-clamp-2 text-sm text-gray-600">
-                          {p.description}
-                        </p>
-                      </CardContent>
-                      <CardFooter className="flex items-center justify-between">
-                        <span className="text-2xl font-bold" style={{ color: '#6e348d' }}>
-                          ${p.price ? p.price.toFixed(2) : '0.00'}
-                        </span>
-                        {/* {typeof p.stock !== 'undefined' && (
-                          <Badge variant="secondary" className="text-xs shadow-sm">
-                            Stock: {p.stock}
-                          </Badge>
-                        )} */}
-                      </CardFooter>
-                    </Card>
-                  </Link>
-                )
-              })}
+              {featured.map((p) => (
+                <ProductCard key={p.id} p={p} />
+              ))}
             </div>
           )}
 

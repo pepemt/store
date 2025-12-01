@@ -47,7 +47,7 @@ app.include_router(chat_router,     prefix="/api/v1/chat",     tags=["chat"])
 app.include_router(image_router,    prefix="/api/v1/images",   tags=["images"])
 app.include_router(checkout_router, prefix="/api/v1/checkout", tags=["checkout"])
 app.include_router(order_router,    prefix="/api/v1/orders",   tags=["orders"])
-app.include_router(products_model_router)
+app.include_router(products_model_router, prefix="/api/v1")
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -86,7 +86,7 @@ if STATIC_DIR.exists() and STATIC_DIR.is_dir():
         # Si no existe el index.html, retornar un mensaje
         return {"message": "Frontend not built. Run 'npm run build' in the app directory."}
 else:
-    logger.warning("⚠️  Directorio static no encontrado. El frontend no estará disponible.")
+    logger.warning("  Directorio static no encontrado. El frontend no estará disponible.")
 
 
 class RecommendRequest(BaseModel):
@@ -134,21 +134,21 @@ async def startup_event():
         Database.initialize(database_url, echo=False)
         await Database.wait_for_connection()
         await Database.create_tables()
-        logger.info("✅ Base de datos inicializada correctamente")
+        logger.info(" Base de datos inicializada correctamente")
 
-        # S3 (opcional)
+        # S3
         try:
             S3Service.initialize()
-            logger.info("✅ Servicio S3 inicializado correctamente")
+            logger.info(" Servicio S3 inicializado correctamente")
         except Exception as e:
-            logger.warning(f"⚠️  Error al inicializar S3 Service (puede continuar sin S3): {e}")
+            logger.warning(f"  Error al inicializar S3 Service (puede continuar sin S3): {e}")
 
-        # Stripe (opcional)
+        # Stripe
         try:
             StripeService.initialize()
-            logger.info("✅ Servicio Stripe inicializado correctamente")
+            logger.info(" Servicio Stripe inicializado correctamente")
         except Exception as e:
-            logger.warning(f"⚠️  Error al inicializar Stripe (puede continuar sin pagos): {e}")
+            logger.warning(f"  Error al inicializar Stripe (puede continuar sin pagos): {e}")
 
         # Log de rutas (útil para confirmar que /api/v1/cart/add existe)
         try:
@@ -159,7 +159,7 @@ async def startup_event():
             pass
 
     except Exception as e:
-        logger.error(f"❌ Error al inicializar la base de datos: {e}")
+        logger.error(f" Error al inicializar la base de datos: {e}")
         raise
 
 
@@ -168,9 +168,9 @@ async def shutdown_event():
     """Cierra la conexión con la base de datos al cerrar la aplicación."""
     try:
         await Database.cleanup()
-        logger.info("🔌 Conexión con la base de datos cerrada")
+        logger.info("Conexión con la base de datos cerrada")
     except Exception as e:
-        logger.error(f"❌ Error al cerrar la conexión con la base de datos: {e}")
+        logger.error(f"Error al cerrar la conexión con la base de datos: {e}")
 
 
 @app.get("/")
@@ -231,12 +231,6 @@ def recommend(payload: RecommendRequest) -> List[Recommendation]:
 
 
 def main():
-    # Demos (logs)
-    image_data = process_image_info("example.jpg", 1920, 1080)
-    logger.info("Image processed:")
-    for k, v in image_data.items():
-        logger.info(f"  {k}: {v}")
-
     host = os.getenv("FASTAPI_HOST", "0.0.0.0")
     port = int(os.getenv("FASTAPI_PORT", "8000"))
     debug = os.getenv("FASTAPI_DEBUG", "true").lower() == "true"

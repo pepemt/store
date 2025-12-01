@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Star, ShoppingCart, Package, Shield, Truck, Loader, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useProduct } from '../hooks/useProducts'
 import { useCart } from '../context/CartContext'
+import { productService } from '../services/productService'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import CachedImage from '../components/CachedImage'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+
+interface SimilarProduct {
+  id: string | number
+  name?: string
+  title?: string
+  description?: string
+  price: number
+  images?: string[]
+  rating?: number
+}
 
 export default function ProductDetails() {
   const { id } = useParams<{ id: string }>()
@@ -14,6 +27,8 @@ export default function ProductDetails() {
 
   const [quantity, setQuantity] = useState(1)
   const [adding, setAdding] = useState(false)
+  const [similarProducts, setSimilarProducts] = useState<SimilarProduct[]>([])
+  const [similarLoading, setSimilarLoading] = useState(false)
 
   // Usar React Query para obtener producto (con cache de 10 minutos)
   const {
@@ -27,7 +42,27 @@ export default function ProductDetails() {
   useEffect(() => {
     if (id) {
       window.scrollTo({ top: 0, behavior: 'smooth' })
+      setQuantity(1) // Reset quantity when product changes
     }
+  }, [id])
+
+  // Cargar productos similares
+  useEffect(() => {
+    async function fetchSimilar() {
+      if (!id) return
+
+      try {
+        setSimilarLoading(true)
+        const products = await productService.getSimilarProducts(id, 4)
+        setSimilarProducts(products)
+      } catch (err) {
+        console.error('Error al cargar productos similares:', err)
+        setSimilarProducts([])
+      } finally {
+        setSimilarLoading(false)
+      }
+    }
+    fetchSimilar()
   }, [id])
 
   const handleAddToCart = async () => {
@@ -187,6 +222,65 @@ export default function ProductDetails() {
             </div>
           </div>
         </div>
+
+        {/* Similar Products Section */}
+        <section className="mt-16 border-t border-gray-200 pt-12">
+          <h2 className="mb-8 text-2xl font-bold text-gray-900">Productos Similares</h2>
+
+          {similarLoading ? (
+            <div className="text-center py-8">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-r-transparent" style={{ borderColor: '#6e348d', borderRightColor: 'transparent' }}></div>
+              <p className="mt-4 text-gray-600">Buscando productos similares...</p>
+            </div>
+          ) : similarProducts.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {similarProducts.map((p) => {
+                const pName = p.name || p.title || 'Producto'
+                const pImage = p.images?.[0] || getProductImageUrl(String(p.id)) || getFallbackImageUrl()
+                return (
+                  <Link
+                    key={p.id}
+                    to={`/product/${p.id}`}
+                    className="group"
+                  >
+                    <Card className="overflow-hidden transition-shadow hover:shadow-lg">
+                      <div className="relative aspect-square overflow-hidden bg-gray-100">
+                        <img
+                          src={pImage}
+                          alt={pName}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                        />
+                        {p.rating && (
+                          <Badge className="absolute right-2 top-2 bg-white text-gray-900 hover:bg-white shadow-sm">
+                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
+                            {p.rating}
+                          </Badge>
+                        )}
+                      </div>
+                      <CardHeader>
+                        <CardTitle className="line-clamp-2 text-base">{pName}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="line-clamp-2 text-sm text-gray-600">
+                          {p.description}
+                        </p>
+                      </CardContent>
+                      <CardFooter>
+                        <span className="text-xl font-bold" style={{ color: '#6e348d' }}>
+                          ${p.price ? p.price.toFixed(2) : '0.00'}
+                        </span>
+                      </CardFooter>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No se encontraron productos similares</p>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )

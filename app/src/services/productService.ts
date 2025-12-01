@@ -34,6 +34,17 @@ interface GetProductsOptions {
   department?: string
 }
 
+interface UserRecommendation {
+  user_id: string
+  article_id: string
+  score: number
+}
+
+interface ProductSimilarity {
+  article_id: string
+  score: number
+}
+
 export const productService = {
   async getProducts(options: GetProductsOptions = {}): Promise<ProductsResponse> {
     try {
@@ -127,6 +138,72 @@ export const productService = {
       return data.categories || []
     } catch (error) {
       console.error('Error al obtener departamentos:', error)
+      throw error
+    }
+  },
+
+  async getRecommendationsForUser(userId: string, limit = 10): Promise<Product[]> {
+    try {
+      const response = await fetch(`${config.PRODUCTS_URL}/recommend/user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, N: limit }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.detail || 'Error al obtener recomendaciones')
+      }
+
+      const recommendations: UserRecommendation[] = await response.json()
+
+      // Obtener los productos completos en paralelo
+      const products = await Promise.all(
+        recommendations.map(async (rec) => {
+          try {
+            return await this.getProductById(rec.article_id)
+          } catch {
+            return null
+          }
+        })
+      )
+
+      return products.filter((p): p is Product => p !== null)
+    } catch (error) {
+      console.error('Error al obtener recomendaciones:', error)
+      throw error
+    }
+  },
+
+  async getSimilarProducts(articleId: string | number, limit = 10): Promise<Product[]> {
+    try {
+      const response = await fetch(`${config.PRODUCTS_URL}/similar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ article_id: String(articleId), N: limit }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.detail || 'Error al obtener productos similares')
+      }
+
+      const similarities: ProductSimilarity[] = await response.json()
+
+      // Obtener los productos completos en paralelo
+      const products = await Promise.all(
+        similarities.map(async (sim) => {
+          try {
+            return await this.getProductById(sim.article_id)
+          } catch {
+            return null
+          }
+        })
+      )
+
+      return products.filter((p): p is Product => p !== null)
+    } catch (error) {
+      console.error('Error al obtener productos similares:', error)
       throw error
     }
   },
