@@ -38,7 +38,7 @@ RUN npm run build
 # ============================================================================
 # Stage 2: Setup Python Environment with uv
 # ============================================================================
-FROM python:3.12-slim AS python-builder
+FROM python:3.11-slim AS python-builder
 
 # Instalar uv desde la imagen oficial
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -76,7 +76,7 @@ RUN uv sync --frozen --no-dev
 # ============================================================================
 # Stage 3: Final Runtime Image
 # ============================================================================
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -84,6 +84,7 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libpq5 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar uv en runtime para reinstalar paquetes locales
@@ -107,10 +108,7 @@ COPY --from=frontend-builder /build/app/dist /app/api/src/static
 # Wallet de Oracle para conexión a base de datos
 COPY .data/adb-wallet /app/.data/adb-wallet
 
-# Configuración OCI
-# IMPORTANTE: Antes del build, copiar ~/.oci al directorio del proyecto:
-#   cp -r ~/.oci .
-# O en producción, montar como volume/secret
+# Configuración OCI: montar en runtime con:
 RUN mkdir -p /root/.oci
 COPY .oci/ /root/.oci/
 

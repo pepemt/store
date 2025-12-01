@@ -49,7 +49,7 @@ class S3Service:
                 verify=True    # Verificar certificados SSL
             )
 
-            logger.info(f"✅ S3 Service (OCI Object Storage) inicializado: {cls._endpoint_url}, bucket: {cls._bucket_name}")
+            logger.info(f" S3 Service (OCI Object Storage) inicializado: {cls._endpoint_url}, bucket: {cls._bucket_name}")
 
         except Exception as e:
             logger.error(f"❌ Error al inicializar S3 Service: {e}")
