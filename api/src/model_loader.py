@@ -21,8 +21,33 @@ DEFAULT_MODEL_URI = "runs:/439bdc0a9c71484f8f090eb39128afa1/model"
 MLFLOW_MODEL_URI = os.getenv("MLFLOW_MODEL_URI", DEFAULT_MODEL_URI)
 
 
+def _configure_s3_env() -> None:
+    """Propagate MinIO credentials so mlflow/boto can reach the artifact store."""
+
+    mappings = {
+        "MLFLOW_S3_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID",
+        "MLFLOW_S3_SECRET_ACCESS_KEY": "AWS_SECRET_ACCESS_KEY",
+        "MLFLOW_S3_REGION": "AWS_DEFAULT_REGION",
+    }
+
+    for source, target in mappings.items():
+        value = os.getenv(source)
+        if value and not os.getenv(target):
+            os.environ[target] = value
+
+    endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
+    if endpoint:
+        os.environ.setdefault("MLFLOW_S3_ENDPOINT_URL", endpoint)
+
+
+def _resolve_tracking_uri() -> str:
+    """Return tracking URI, preferring env var and falling back to local folder."""
+    return os.getenv("MLFLOW_TRACKING_URI", f"file:{LOCAL_MLFLOW_DIR}")
+
+
 def _configure_mlflow() -> None:
-    tracking_uri = f"file:{LOCAL_MLFLOW_DIR}"
+    _configure_s3_env()
+    tracking_uri = _resolve_tracking_uri()
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_registry_uri(tracking_uri)
 
