@@ -108,10 +108,6 @@ COPY --from=frontend-builder /build/app/dist /app/api/src/static
 # Wallet de Oracle para conexión a base de datos
 COPY .data/adb-wallet /app/.data/adb-wallet
 
-# Configuración OCI: montar en runtime con:
-RUN mkdir -p /root/.oci
-COPY .oci/ /root/.oci/
-
 # Configurar PATH para usar el virtualenv
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
@@ -123,6 +119,10 @@ ENV ORACLE_WALLET_LOCATION=/app/.data/adb-wallet
 # Reinstalar los paquetes locales en sus ubicaciones finales
 RUN uv pip install --no-deps -e /app/api -e /app/database -e /app/images -e /app/text
 
+# Copy entrypoint script (generates OCI config from env vars at runtime)
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Exponer puerto de la API
 EXPOSE 8000
 
@@ -130,5 +130,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-# Ejecutar la aplicación usando python -m uvicorn
+ENTRYPOINT ["docker-entrypoint.sh"]
+
 CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
