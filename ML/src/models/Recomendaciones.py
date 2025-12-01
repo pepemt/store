@@ -13,6 +13,7 @@ from typing import Dict, Iterable, Optional, Tuple
 from urllib.parse import unquote
 
 import mlflow
+from mlflow.tracking import MlflowClient
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -44,6 +45,51 @@ def _default_local_tracking_uri() -> str:
 
     LOCAL_MLFLOW_DIR.mkdir(parents=True, exist_ok=True)
     return f"file:{LOCAL_MLFLOW_DIR}"
+
+
+def _configure_s3_credentials_for_mlflow() -> None:
+    """Propaga credenciales S3 (MinIO) a las variables que MLflow/Boto esperan."""
+
+    mappings = {
+        "MLFLOW_S3_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID",
+        "MLFLOW_S3_SECRET_ACCESS_KEY": "AWS_SECRET_ACCESS_KEY",
+        "MLFLOW_S3_REGION": "AWS_DEFAULT_REGION",
+    }
+
+    for source, target in mappings.items():
+        value = os.getenv(source)
+        if value and not os.getenv(target):
+            os.environ[target] = value
+
+    endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
+    if endpoint:
+        os.environ.setdefault("MLFLOW_S3_ENDPOINT_URL", endpoint)
+
+
+def _configure_mlflow_tracking() -> None:
+    """Configura URIs de tracking/registry y asegura el experimento usando MinIO."""
+
+    _configure_s3_credentials_for_mlflow()
+
+    tracking_uri = _get_env("MLFLOW_TRACKING_URI", _default_local_tracking_uri())
+    mlflow.set_tracking_uri(tracking_uri)
+
+    registry_uri = os.getenv("MLFLOW_REGISTRY_URI")
+    if registry_uri:
+        mlflow.set_registry_uri(registry_uri)
+
+    experiment_name = _get_env("MLFLOW_EXPERIMENT_NAME", "Default")
+    artifact_root = os.getenv("MLFLOW_DEFAULT_ARTIFACT_ROOT") or None
+
+    client = MlflowClient(tracking_uri=tracking_uri)
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        client.create_experiment(
+            experiment_name,
+            artifact_location=artifact_root,
+        )
+
+    mlflow.set_experiment(experiment_name)
 
 
 @dataclass
@@ -226,14 +272,8 @@ class ALSWrapper(mlflow.pyfunc.PythonModel):
 
 
 def log_model_to_mlflow(artifacts: RecommenderArtifacts, run_name: str = "als recomendaciones") -> Tuple[str, str]:
-    # Forzamos todo a ser completamente local usando un backend file:// en LOCAL_MLFLOW_DIR
-    tracking_uri = _default_local_tracking_uri()
-    experiment_name = _get_env("MLFLOW_EXPERIMENT_NAME", "Default")
-
-    mlflow.set_tracking_uri(tracking_uri)
-    # Usar el mismo backend local para el registry (sin S3 / MinIO)
-    mlflow.set_registry_uri(tracking_uri)
-    mlflow.set_experiment(experiment_name)
+    # Configura tracking remoto (MLflow server + MinIO) cuando las variables existen
+    _configure_mlflow_tracking()
 
     with mlflow.start_run(run_name=run_name) as run:
         mlflow.log_params(
