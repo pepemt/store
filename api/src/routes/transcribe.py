@@ -127,7 +127,7 @@ async def _proxy_to_oracle(wav_path: str, model_name: Optional[str], language: O
         if resp.status_code >= 400:
             # Propagamos el mensaje del backend para depurar
             logger.warning("Backend STT %s devolvió %s: %s",
-                           backend_url, resp.status_code, resp.text)
+                          backend_url, resp.status_code, resp.text)
             # 502 Bad Gateway hacia el front para indicar fallo del backend
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
