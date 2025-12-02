@@ -14,7 +14,7 @@ def route_by_image(state: AgentState) -> Literal["has_image", "no_image"]:
     return result
 
 
-def route_by_intent(state: AgentState) -> Literal["product_search", "product_recommendations", "chat"]:
+def route_by_intent(state: AgentState) -> Literal["product_search", "product_recommendations", "chat","semantic_review_search"]:
     """Route to appropriate handler based on intent"""
     intent = state.get("intent", "chat")
     logger.debug(f"Routing to: {intent}")

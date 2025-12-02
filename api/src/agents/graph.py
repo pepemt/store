@@ -6,7 +6,8 @@ from nodes import (
     semantic_product_search_node,
     chat_node,
     classifier_node,
-    vision_node
+    vision_node,
+    semantic_review_search_node
 )
 from routing import route_by_intent, route_by_image
 
@@ -20,6 +21,8 @@ def build_graph():
     builder.add_node("classifier", classifier_node)
     builder.add_node("chat", chat_node)
     builder.add_node("product_search", semantic_product_search_node)
+    builder.add_node("review_search", semantic_review_search_node)
+
 
     # Flow: START -> check if image exists
     # If image -> vision_node -> classifier
@@ -44,12 +47,15 @@ def build_graph():
         {
             "chat": "chat",
             "product_search": "product_search",
-            "product_recommendations": "product_search"  # Recomendaciones también usan búsqueda semántica
+            "product_recommendations": "product_search",  # Recomendaciones también usan búsqueda semántica
+            "semantic_review_search": "review_search"
         }
     )
 
     # All paths lead to END
     builder.add_edge("chat", END)
     builder.add_edge("product_search", END)
+    builder.add_edge("review_search", END)
+
 
     return builder.compile()

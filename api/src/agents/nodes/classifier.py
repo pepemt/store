@@ -71,6 +71,21 @@ Categories:
 - chat: User wants INFORMATION, DESCRIPTION, or general conversation
   Examples: "qué ves en la imagen?", "dime que ves", "describe esto", "qué es esto?", "hello", "hola"
   Use this when user asks WHAT something IS (description) rather than wanting to BUY it.
+  
+- semantic_review_search: User expresses a NEED, PURPOSE or EXPERIENCE they want a product for. 
+  They are NOT searching por una descripción literal sino por una utilidad o criterio subjetivo.
+  Examples: 
+    "quiero unos audífonos buenos para estudiar",
+    "busco ropa fresca para el calor",
+    "necesito una mochila para viajes largos",
+    "quiero sandalias cómodas para caminar",
+    "busco algo elegante para oficina",
+    "necesito algo resistente para diario".
+
+  Use this when the user expresses INTENT or PURPOSE instead of keywords.
+  not a specific product. This intent activates the semantic search engine
+  based on embedded reviews.
+  IMPORTANT: This is DIFFERENT from product_search, which is for buscar productos específicos.
 
 CRITICAL RULES FOR IMAGES:
 - "qué ves", "dime que ves", "describe", "qué es esto" + image → chat (wants description)
@@ -80,6 +95,7 @@ CRITICAL RULES FOR IMAGES:
 IMPORTANT:
 - Questions about WHAT an item IS = chat
 - Requests to FIND/BUY similar items = product_search
+- NEED/PURPOSE/CRITERIA = semantic_review_search
 - Greetings and store questions = chat
 
 Now classify this message:
@@ -90,7 +106,7 @@ Category:"""
     response = await llm.ainvoke([{"role": "user", "content": prompt}])
     intent = response.content.strip().lower()
 
-    valid_intents = ["product_search", "product_recommendations", "chat"]
+    valid_intents = ["product_search", "product_recommendations", "chat","semantic_review_search"]
     if intent not in valid_intents:
         intent = "chat"
 

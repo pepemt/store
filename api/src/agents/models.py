@@ -55,6 +55,7 @@ AgentIntent = Literal[
     "smalltalk",
     "search_products",
     "filter_products",
+    "semantic_review_search",
     "show_product",
     "add_to_cart",
     "remove_from_cart",
