@@ -11,43 +11,55 @@ logger = logging.getLogger(__name__)
 
 
 class ChatSession:
-    """Represents a single chat session with history and context."""
+    """Represents a single chat session with history and context per conversation."""
 
     def __init__(self, session_id: str, customer_id: Optional[str] = None):
         self.session_id = session_id
         self.customer_id = customer_id
-        self.messages: List[Dict[str, Any]] = []
-        self.context: Dict[str, Any] = {}
+        # Almacenamiento por conversation_id
+        self.conversations: Dict[str, List[Dict[str, Any]]] = {}  # conversation_id -> messages
+        self.conversation_contexts: Dict[str, Dict[str, Any]] = {}  # conversation_id -> context
         self.created_at = datetime.utcnow()
         self.last_activity = datetime.utcnow()
 
-    def add_message(self, role: str, content: str):
-        """Add a message to the conversation history."""
-        self.messages.append({
+    def add_message(self, role: str, content: str, conversation_id: str):
+        """Add a message to a specific conversation."""
+        if conversation_id not in self.conversations:
+            self.conversations[conversation_id] = []
+            self.conversation_contexts[conversation_id] = {}
+
+        self.conversations[conversation_id].append({
             "role": role,
             "content": content,
             "timestamp": datetime.utcnow().isoformat()
         })
         self.last_activity = datetime.utcnow()
 
-    def update_context(self, updates: Dict[str, Any]):
-        """Update session context with new information."""
-        self.context.update(updates)
+    def update_context(self, updates: Dict[str, Any], conversation_id: str):
+        """Update context for a specific conversation."""
+        if conversation_id not in self.conversation_contexts:
+            self.conversation_contexts[conversation_id] = {}
+        self.conversation_contexts[conversation_id].update(updates)
         self.last_activity = datetime.utcnow()
 
-    def get_message_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Get conversation history, optionally limited to recent messages."""
+    def get_context(self, conversation_id: str) -> Dict[str, Any]:
+        """Get context for a specific conversation."""
+        return self.conversation_contexts.get(conversation_id, {})
+
+    def get_message_history(self, conversation_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get messages for a specific conversation, optionally limited to recent messages."""
+        messages = self.conversations.get(conversation_id, [])
         if limit:
-            return self.messages[-limit:]
-        return self.messages
+            return messages[-limit:]
+        return messages
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert session to dictionary."""
         return {
             "session_id": self.session_id,
             "customer_id": self.customer_id,
-            "messages": self.messages,
-            "context": self.context,
+            "conversations": self.conversations,
+            "conversation_contexts": self.conversation_contexts,
             "created_at": self.created_at.isoformat(),
             "last_activity": self.last_activity.isoformat()
         }

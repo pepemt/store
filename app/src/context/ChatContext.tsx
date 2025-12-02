@@ -262,6 +262,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       if (customerIdRef.current) {
         params.push(`customer_id=${encodeURIComponent(customerIdRef.current)}`)
       }
+      // Enviar conversation_id activa para recibir historial correcto
+      if (activeConversationIdRef.current) {
+        params.push(`conversation_id=${encodeURIComponent(activeConversationIdRef.current)}`)
+      }
 
       if (params.length > 0) {
         wsUrl += (wsUrl.includes('?') ? '&' : '?') + params.join('&')

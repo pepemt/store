@@ -8,6 +8,7 @@ if [ -n "$OCI_USER" ] && [ -n "$OCI_FINGERPRINT" ] && [ -n "$OCI_TENANCY" ] && [
 
     cat > /root/.oci/config << EOF
 [DEFAULT]
+
 user=${OCI_USER}
 fingerprint=${OCI_FINGERPRINT}
 key_file=${OCI_KEY_FILE:-/root/.oci/private.pem}

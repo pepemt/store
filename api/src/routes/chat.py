@@ -139,7 +139,8 @@ manager = ConnectionManager()
 async def websocket_chat_endpoint(
     websocket: WebSocket,
     session_id: Optional[str] = Query(None),
-    customer_id: Optional[str] = Query(None)
+    customer_id: Optional[str] = Query(None),
+    conversation_id: Optional[str] = Query(None)
 ):
     """
     WebSocket endpoint for real-time chat.
@@ -147,6 +148,7 @@ async def websocket_chat_endpoint(
     Query Parameters:
     - session_id: Optional existing session ID to resume conversation
     - customer_id: Optional customer ID for personalized responses
+    - conversation_id: Optional conversation ID to load specific conversation history
     """
     try:
         # Initialize metadata cache first
@@ -169,11 +171,13 @@ async def websocket_chat_endpoint(
 
     try:
         # Send welcome message with session info
+        # Solo enviar historial si se especifica conversation_id
+        history = chat_session.get_message_history(conversation_id, limit=10) if conversation_id else []
         await manager.send_message(session_id, {
             "type": "connection",
             "session_id": session_id,
             "message": "Conectado al asistente de Zenith",
-            "history": chat_session.get_message_history(limit=10)
+            "history": history
         })
 
         # Listen for messages
@@ -184,8 +188,10 @@ async def websocket_chat_endpoint(
             try:
                 message_data = json.loads(data)
                 user_message = message_data.get("message", "")
-                # Extraer conversation_id del cliente (puede ser None)
-                conversation_id = message_data.get("conversation_id")
+                # Extraer conversation_id del cliente con fallback
+                msg_conversation_id = message_data.get("conversation_id")
+                if not msg_conversation_id:
+                    msg_conversation_id = f"default_{session_id}"  # Fallback para compatibilidad
 
                 # Extract and validate image if present
                 image_data = None
@@ -200,7 +206,7 @@ async def websocket_chat_endpoint(
                         await manager.send_message(session_id, {
                             "type": "error",
                             "message": error_msg,
-                            "conversation_id": conversation_id
+                            "conversation_id": msg_conversation_id
                         })
                         continue
 
@@ -212,7 +218,7 @@ async def websocket_chat_endpoint(
                     await manager.send_message(session_id, {
                         "type": "error",
                         "message": "Envía un mensaje o una imagen",
-                        "conversation_id": conversation_id
+                        "conversation_id": msg_conversation_id
                     })
                     continue
 
@@ -220,19 +226,19 @@ async def websocket_chat_endpoint(
                 session_message = user_message if user_message else ""
                 if image_data:
                     session_message = f"[imagen adjunta] {session_message}".strip()
-                chat_session.add_message("user", session_message)
+                chat_session.add_message("user", session_message, msg_conversation_id)
 
                 # Send typing indicator
                 await manager.send_message(session_id, {
                     "type": "typing",
                     "message": "Escribiendo...",
-                    "conversation_id": conversation_id  # Incluir conversation_id para typing
+                    "conversation_id": msg_conversation_id
                 })
 
                 # Prepare agent state
-                # Convert session messages to agent format
+                # Convert session messages to agent format (solo de esta conversación)
                 agent_messages = []
-                for msg in chat_session.get_message_history():
+                for msg in chat_session.get_message_history(msg_conversation_id):
                     agent_messages.append({
                         "role": msg["role"],
                         "content": msg["content"]
@@ -248,7 +254,7 @@ async def websocket_chat_endpoint(
                     "category_filter": None,
                     "department_filter": None,
                     "products_found": [],
-                    "conversation_context": chat_session.context,
+                    "conversation_context": chat_session.get_context(msg_conversation_id),
                     # Image fields
                     "image_data": image_data,
                     "image_mime_type": image_mime_type if image_data else None,
@@ -269,7 +275,7 @@ async def websocket_chat_endpoint(
                 intent = result.get("intent", "unknown")
 
                 # Add assistant message to session
-                chat_session.add_message("assistant", assistant_message)
+                chat_session.add_message("assistant", assistant_message, msg_conversation_id)
 
                 # Update session context - include image description if present
                 context_update = {
@@ -282,7 +288,7 @@ async def websocket_chat_endpoint(
                     context_update["last_image_description"] = result.get("image_description")
                     logger.info(f"Saved image description to session context for future reference")
 
-                chat_session.update_context(context_update)
+                chat_session.update_context(context_update, msg_conversation_id)
 
                 # Send response to client
                 response_data = {
@@ -290,7 +296,7 @@ async def websocket_chat_endpoint(
                     "message": assistant_message,
                     "intent": intent,
                     "session_id": session_id,
-                    "conversation_id": conversation_id  # Devolver conversation_id original
+                    "conversation_id": msg_conversation_id
                 }
 
                 # Include products if found
@@ -305,14 +311,14 @@ async def websocket_chat_endpoint(
                 await manager.send_message(session_id, {
                     "type": "error",
                     "message": "Formato de mensaje inválido",
-                    "conversation_id": None  # No podemos extraer conversation_id si el JSON es inválido
+                    "conversation_id": None
                 })
             except Exception as e:
                 logger.error(f"Error processing message: {e}", exc_info=True)
                 await manager.send_message(session_id, {
                     "type": "error",
                     "message": "Error procesando el mensaje",
-                    "conversation_id": conversation_id if 'conversation_id' in locals() else None
+                    "conversation_id": msg_conversation_id if 'msg_conversation_id' in locals() else None
                 })
 
     except WebSocketDisconnect:
