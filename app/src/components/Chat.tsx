@@ -22,6 +22,7 @@ import { Card } from "./ui/card";
 import { Markdown } from "./ui/markdown";
 import ConversationList from "./ConversationList";
 import Avatar from "./Avatar";
+import MicButton from "./ui/mic-button"; // <-- NUEVO
 
 export default function Chat() {
   const location = useLocation();
@@ -51,6 +52,11 @@ export default function Chat() {
   const [avatarState, setAvatarState] = useState<
     "standby" | "talking" | "thinking"
   >("standby");
+
+  // URL de transcripción desde .env
+  const API_BASE =
+    (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
+  const TRANSCRIBE_URL = `${API_BASE}/transcribe`;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -108,7 +114,6 @@ export default function Chat() {
     setInputValue("");
     clearSelectedImage();
 
-    // mientras esperamos respuesta, "pensando"
     setAvatarState("thinking");
     await sendMessage(messageText, imageToSend);
   };
@@ -161,7 +166,11 @@ export default function Chat() {
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
     const maxSize = 5 * 1024 * 1024; // 5MB
 
-    console.log(`[Image] Selected file: ${file.name}, size: ${file.size} bytes (${(file.size / 1024).toFixed(1)}KB), type: ${file.type}`);
+    console.log(
+      `[Image] Selected file: ${file.name}, size: ${file.size} bytes (${(
+        file.size / 1024
+      ).toFixed(1)}KB), type: ${file.type}`
+    );
 
     if (!allowedTypes.includes(file.type)) {
       toast.error("Tipo de imagen no soportado", {
@@ -181,7 +190,9 @@ export default function Chat() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
-      console.log(`[Image] Base64 preview length: ${result?.length || 0} chars`);
+      console.log(
+        `[Image] Base64 preview length: ${result?.length || 0} chars`
+      );
       setImagePreview(result);
     };
     reader.readAsDataURL(file);
@@ -261,8 +272,10 @@ export default function Chat() {
           className={`fixed z-50 flex overflow-hidden shadow-2xl transition-all rounded-none sm:rounded-lg ${
             isExpanded
               ? "inset-2 sm:inset-6 w-auto h-auto rounded-lg"
-              : "inset-0 sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[600px] sm:max-w-[calc(100vw-3rem)] sm:max-h-[calc(100vh-3rem)] top-[-1px]"
-          } ${!isExpanded && "sm:w-[500px] md:w-[500px]"} ${!isExpanded && showConversations && "md:w-[700px]"}`}
+              : "inset-0 sm:inset-auto sm:bottom-6 sm:right-6 sm:h[600px] sm:max-w-[calc(100vw-3rem)] sm:max-h-[calc(100vh-3rem)] top-[-1px]"
+          } ${!isExpanded && "sm:w-[500px] md:w-[500px]"} ${
+            !isExpanded && showConversations && "md:w-[700px]"
+          }`}
         >
           {/* Conversation List Sidebar */}
           {showConversations && (
@@ -298,7 +311,6 @@ export default function Chat() {
 
                 {/* Avatar mini */}
                 <div className="relative flex items-center justify-center rounded-full bg-white/10 shadow-sm w-[3rem]">
-                  {/* lo escalamos para que quepa en el header */}
                   <div className="fixed">
                     <div className="absolute scale-[0.3] origin-top-left left-[-4.4rem] top-[-4.3rem]">
                       <Avatar state={avatarState} />
@@ -308,7 +320,7 @@ export default function Chat() {
 
                 <div className="flex-shrink-0">
                   <h3 className="font-semibold text-base whitespace-nowrap">
-                    Eyra - AI 
+                    Eyra - AI
                   </h3>
                   <p className="text-xs text-white/90 whitespace-nowrap">
                     {avatarState === "thinking"
@@ -373,7 +385,7 @@ export default function Chat() {
                   </h4>
                   <p className="mb-6 max-w-sm text-sm text-gray-600">
                     Estoy aquí para ayudarte con cualquier duda sobre productos,
-                    pedidos o navegación en la tienda. ¡Pideme con confianza lo que quieras!
+                    pedidos o navegación en la tienda. ¡Pídeme con confianza lo que quieras!
                   </p>
                   <div className="space-y-2 w-full max-w-xs">
                     <Button
@@ -436,12 +448,14 @@ export default function Chat() {
                                 src={message.image}
                                 alt="Imagen adjunta"
                                 className="max-w-[150px] max-h-[150px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(message.image!, "_blank")}
+                                onClick={() =>
+                                  window.open(message.image!, "_blank")
+                                }
                               />
                             </div>
                           )}
-                          {message.text && (
-                            message.sender === "assistant" ? (
+                          {message.text &&
+                            (message.sender === "assistant" ? (
                               <Markdown className="text-gray-900">
                                 {message.text}
                               </Markdown>
@@ -449,8 +463,7 @@ export default function Chat() {
                               <p className="whitespace-pre-wrap text-sm">
                                 {message.text}
                               </p>
-                            )
-                          )}
+                            ))}
 
                           {/* Products */}
                           {message.products && message.products.length > 0 && (
@@ -715,6 +728,20 @@ export default function Chat() {
               )}
 
               <div className="flex gap-2">
+                {/* Micrófono */}
+                <MicButton
+                  apiUrl={TRANSCRIBE_URL}
+                  modelName="medium"
+                  maxMs={45000}
+                  onTranscribed={async (text) => {
+                    setAvatarState("thinking");
+                    await sendMessage(text);
+                  }}
+                  className="h-10 w-10 flex-shrink-0 border-gray-300 hover:border-purple-500 hover:text-purple-600 transition-colors"
+                  size="icon"
+                  variant="outline"
+                />
+
                 {/* Hidden file input */}
                 <input
                   type="file"
@@ -744,7 +771,11 @@ export default function Chat() {
                     setAvatarState("thinking");
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder={selectedImage ? "Agrega un mensaje (opcional)..." : "Escribe tu mensaje..."}
+                  placeholder={
+                    selectedImage
+                      ? "Agrega un mensaje (opcional)..."
+                      : "Escribe tu mensaje..."
+                  }
                   className="flex-1 resize-none rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                   rows={1}
                   style={{

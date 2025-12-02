@@ -12,6 +12,7 @@ from .chat import router as chat_router
 from .images import router as image_router
 from .recommendations import router as recommendations_router
 from .metadata import router as metadata_router
+from .transcribe import router as transcribe_router
 
 __all__ = [
     "auth_router",
@@ -23,4 +24,5 @@ __all__ = [
     "image_router",
     "recommendations_router",
     "metadata_router",
+    "transcribe_router",
 ]
