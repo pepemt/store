@@ -68,7 +68,7 @@ def get_model():
 
 
 def _load_model():
-    """Carga el modelo desde MLflow."""
+    """Carga el modelo desde MLflow. Retorna None si falla."""
     _configure_mlflow()
     try:
         logger.info(f"Cargando modelo desde: {MLFLOW_MODEL_URI}")
@@ -76,9 +76,10 @@ def _load_model():
         logger.info("Modelo cargado exitosamente")
         return model
     except Exception as exc:
-        raise RuntimeError(
+        logger.warning(
             f"No se pudo cargar el modelo desde '{MLFLOW_MODEL_URI}': {exc}"
-        ) from exc
+        )
+        return None
 
 
 async def preload_model():

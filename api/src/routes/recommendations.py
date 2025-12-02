@@ -57,6 +57,8 @@ def _get_similar_items_internal(article_id: str, n: int = 5) -> List[ProductSimi
     """
     try:
         model = get_model()
+        if model is None:
+            return []
 
         py_model = getattr(getattr(model, "_model_impl", None), "python_model", None)
         if py_model is None:
@@ -223,24 +225,23 @@ def similar_items(payload: SimilarItemsRequest) -> List[ProductSimilarity]:
     accediendo al modelo interno de Python (ALSWrapper) cargado mediante MLflow.
     """
     model = get_model()
+    if model is None:
+        logger.warning("Modelo no disponible, retornando lista vacía")
+        return []
 
     # Acceso al PythonModel interno (ALSWrapper) registrado en MLflow.
     py_model = getattr(getattr(model, "_model_impl", None), "python_model", None)
     if py_model is None:
-        raise HTTPException(
-            status_code=500,
-            detail="No se pudo acceder al modelo interno ALSWrapper desde MLflow.",
-        )
+        logger.warning("No se pudo acceder al modelo interno ALSWrapper")
+        return []
 
     item_map = getattr(py_model, "item_map", None)
     rev_item_map = getattr(py_model, "rev_item_map", None)
     als_model = getattr(py_model, "model", None)
 
     if item_map is None or rev_item_map is None or als_model is None:
-        raise HTTPException(
-            status_code=500,
-            detail="El modelo interno no expone los mapas de artículos o el modelo ALS.",
-        )
+        logger.warning("El modelo interno no expone los mapas de artículos o el modelo ALS")
+        return []
 
     article_id_str = str(payload.article_id)
     idx = item_map.get(article_id_str)
@@ -251,10 +252,8 @@ def similar_items(payload: SimilarItemsRequest) -> List[ProductSimilarity]:
     try:
         recs = als_model.similar_items(idx, N=payload.N + 1)
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al calcular artículos similares: {exc}",
-        )
+        logger.warning(f"Error al calcular artículos similares: {exc}")
+        return []
 
     # `similar_items` puede regresar lista de tuplas (idx, score) o (indices, scores)
     if isinstance(recs, tuple):

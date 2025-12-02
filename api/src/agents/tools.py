@@ -7,7 +7,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy import select, func, or_
 from database.lib import Database
 from database.models import Article, Transaction
@@ -383,32 +383,220 @@ async def _get_average_price(session, article_id: int) -> float:
         return 29.99 + (article_id % 100)
 
 
-async def semantic_product_search(
+# ============================================================================
+# GENERIC vs DISTINCTIVE TERMS
+# ============================================================================
+# Generic terms are common clothing/color/gender words that don't distinguish products
+# Distinctive terms are specific designs/patterns/characters that make products unique
+GENERIC_TERMS = {
+    # Clothing types
+    't-shirt', 'shirt', 'dress', 'pants', 'trousers', 'hoodie', 'jacket',
+    'shoes', 'top', 'blouse', 'skirt', 'shorts', 'sweater', 'coat',
+    'jeans', 'leggings', 'cardigan', 'vest', 'suit', 'blazer', 'bodysuit',
+    'jumpsuit', 'romper', 'pajamas', 'underwear', 'socks', 'hat', 'cap',
+    # Colors
+    'black', 'white', 'blue', 'red', 'pink', 'green', 'grey', 'gray', 'brown',
+    'yellow', 'orange', 'purple', 'beige', 'navy', 'gold', 'silver', 'cream',
+    # Gender/Age
+    'men', 'women', 'girls', 'boys', 'unisex', 'kids', 'baby', 'adult',
+    'mens', 'womens', 'man', 'woman', 'girl', 'boy', 'child', 'children',
+    # Styles
+    'casual', 'formal', 'elegant', 'sporty', 'vintage', 'modern', 'classic',
+    'slim', 'fitted', 'loose', 'regular', 'oversized', 'mini', 'maxi', 'long', 'short',
+    # Generic
+    'clothing', 'clothes', 'wear', 'style', 'fashion', 'new', 'sale', 'set',
+    'print', 'printed', 'pattern', 'basic', 'plain', 'solid', 'striped'
+}
+
+
+async def _semantic_search_v1_terms(
     query: str,
     limit: int = 10,
-    similarity_threshold: float = 0.65  # Increased from 0.5 for better precision
+    similarity_threshold: float = 0.65,  # Restored to original for precision
+    top_k_per_term: int = 10  # Restored to original - fewer but more relevant matches
 ) -> List[Dict[str, Any]]:
     """
-    Search products using intelligent semantic similarity with multi-factor scoring.
+    V1: Search products using TERM-BY-TERM embeddings with coverage scoring.
 
-    Uses advanced term-based vector search with coverage and quality scoring to find
-    the most relevant products. Matches are ranked by:
-    1. Coverage: How many query terms are matched
-    2. Quality: Similarity scores with exponential weighting
-    3. Consistency: Bonus for matching ALL query terms
+    Creates separate embeddings for each query term, finds similar terms for each,
+    and ranks products by coverage (how many query terms they match).
 
-    Args:
-        query: Natural language search query (e.g., "pantalones negros", "red dress")
-        limit: Maximum number of results (default 10, max 20)
-        similarity_threshold: Minimum similarity score (0.0-1.0, default 0.65)
+    Best for: Specific searches with exact terms like "Nike black shoes"
+    """
+    import time
+    start_time = time.time()
 
-    Returns:
-        List of product dictionaries with details, ranked by intelligent scoring
+    limit = min(limit, 20)
 
-    Example:
-        query: "sandals men black"
-        → Article matching all 3 terms: high score
-        → Article matching only "black": low score (poor coverage)
+    logger.info("=" * 80)
+    logger.info(f"🔍 SEMANTIC SEARCH V1 (Term-by-Term): '{query}'")
+    logger.info(f"   Parameters: limit={limit}, threshold={similarity_threshold}, top_k_per_term={top_k_per_term}")
+    logger.info("=" * 80)
+
+    # Step 1: Extract terms from query
+    tokenizer = Tokenizer(min_length=2, languages=['en', 'es'])
+    query_terms = tokenizer.extract_terms(query)
+
+    logger.info(f"   Extracted {len(query_terms)} terms: {query_terms}")
+
+    if not query_terms:
+        logger.warning(f"No valid terms extracted from query: '{query}'")
+        return []
+
+    # Step 2: Get embedding model
+    embedding_model = _get_embedding_model()
+
+    # Step 3: Connect to vector store
+    vector_store = OracleVectorStore()
+
+    # Step 4: Search for similar terms PER QUERY TERM
+    query_term_matches = {term: [] for term in query_terms}
+
+    for idx, query_term in enumerate(query_terms, 1):
+        logger.info(f"   [{idx}/{len(query_terms)}] Processing term: '{query_term}'")
+
+        term_embedding = embedding_model.embed(query_term)
+        similar_terms = vector_store.find_similar_terms(
+            query_embedding=term_embedding,
+            top_k=top_k_per_term,
+            min_similarity=similarity_threshold
+        )
+
+        # Log similar terms found (crucial for debugging)
+        logger.info(f"      → {len(similar_terms)} similar terms found:")
+        for similar_term, article_ids, sim in similar_terms[:5]:
+            is_exact = "✓ EXACT" if similar_term.lower() == query_term.lower() else ""
+            logger.info(f"         • '{similar_term}' (sim={sim:.3f}) → {len(article_ids)} products {is_exact}")
+
+        # Guardar con término similar y boost para match exacto
+        for similar_term, article_ids, similarity in similar_terms:
+            is_exact = (similar_term.lower() == query_term.lower())
+            # 3x boost for exact match, 1x for approximate
+            match_boost = 3.0 if is_exact else 1.0
+            adjusted_similarity = similarity * match_boost
+
+            for article_id in article_ids:
+                query_term_matches[query_term].append((
+                    article_id,
+                    similar_term,  # Guardar qué término similar matcheó
+                    adjusted_similarity
+                ))
+
+    vector_store.close()
+
+    # Step 5: Build article matches with coverage scoring
+    article_matches = defaultdict(dict)
+    article_similar_terms = defaultdict(dict)  # Track which similar term matched
+
+    for query_term, matches in query_term_matches.items():
+        for article_id, similar_term, adjusted_similarity in matches:
+            if query_term not in article_matches[article_id]:
+                article_matches[article_id][query_term] = adjusted_similarity
+                article_similar_terms[article_id][query_term] = similar_term
+            else:
+                # Keep the better match
+                if adjusted_similarity > article_matches[article_id][query_term]:
+                    article_matches[article_id][query_term] = adjusted_similarity
+                    article_similar_terms[article_id][query_term] = similar_term
+
+    logger.info(f"   Found {len(article_matches)} unique products")
+
+    if not article_matches:
+        return []
+
+    # Step 6: Score by coverage + quality (with exact match boost already applied)
+    article_scores = {}
+    article_debug_info = {}
+
+    for article_id, term_sims in article_matches.items():
+        matched_terms = len(term_sims)
+        coverage = matched_terms / len(query_terms)
+
+        # Only consider products matching at least 1/3 of terms
+        if coverage < 0.33:
+            continue
+
+        best_sims = list(term_sims.values())
+        avg_quality = sum(s ** 2 for s in best_sims) / matched_terms
+        full_coverage_boost = 1.2 if matched_terms == len(query_terms) else 1.0
+
+        final_score = (coverage ** 1.5) * avg_quality * full_coverage_boost
+
+        article_scores[article_id] = final_score
+
+        # Get similar terms for this article
+        similar_term_list = [article_similar_terms[article_id].get(t, t) for t in list(term_sims.keys())[:3]]
+
+        article_debug_info[article_id] = {
+            'matched': matched_terms,
+            'total': len(query_terms),
+            'coverage': round(coverage, 2),
+            'avg_quality': round(avg_quality, 3),
+            'terms': list(term_sims.keys())[:3],
+            'similar_terms': similar_term_list  # What actually matched in vector store
+        }
+
+    # Step 7: Filter and rank
+    filtered_scores = {aid: s for aid, s in article_scores.items() if s >= 0.3}
+
+    if not filtered_scores:
+        return []
+
+    ranked_article_ids = heapq.nlargest(limit, filtered_scores.items(), key=lambda x: x[1])
+
+    logger.info(f"   Top {len(ranked_article_ids)} results selected")
+
+    # Step 8: Fetch from PostgreSQL
+    async with Database.get_session() as session:
+        article_ids = [int(aid) for aid, _ in ranked_article_ids]
+        stmt = select(Article).where(Article.article_id.in_(article_ids))
+        result = await session.execute(stmt)
+        articles = {a.article_id: a for a in result.scalars().all()}
+
+        products = []
+        for article_id, relevance_score in ranked_article_ids:
+            article = articles.get(int(article_id))
+            if not article:
+                continue
+
+            price = await _get_average_price(session, article.article_id)
+            info = article_debug_info.get(article_id, {})
+
+            products.append({
+                "id": article.article_id,
+                "name": article.prod_name,
+                "description": article.detail_desc,
+                "category": article.product_type_name,
+                "department": article.department_name,
+                "product_group": article.product_group_name,
+                "color": article.colour_group_name,
+                "price": price,
+                "stock": 100,
+                "images": _build_images(article.article_id),
+                "relevance_score": round(relevance_score, 3),
+                "search_method": "v1_terms",
+                "matched_terms": info.get('terms', [])
+            })
+
+        total_time = time.time() - start_time
+        logger.info(f"✅ V1 COMPLETE in {total_time:.2f}s → {len(products)} products")
+
+        return products
+
+
+async def _semantic_search_v2_full_query(
+    query: str,
+    limit: int = 10,
+    similarity_threshold: float = 0.45,
+    top_k_terms: int = 100
+) -> List[Dict[str, Any]]:
+    """
+    V2: Search products using FULL QUERY embedding and frequency-based scoring.
+
+    Creates ONE embedding for the ENTIRE query, finds similar terms,
+    and ranks products by how many similar terms they appear in.
+
+    Best for: Semantic/conceptual searches like "algo elegante para fiesta"
     """
     import time
     start_time = time.time()
@@ -417,43 +605,20 @@ async def semantic_product_search(
     limit = min(limit, 20)
 
     logger.info("=" * 80)
-    logger.info(f"🚀 SEMANTIC SEARCH START: '{query}' (limit={limit}, threshold={similarity_threshold})")
+    logger.info(f"🚀 SEMANTIC SEARCH V2 (Full Query Embedding): '{query}'")
+    logger.info(f"   Parameters: limit={limit}, threshold={similarity_threshold}, top_k_terms={top_k_terms}")
     logger.info("=" * 80)
 
-    # Step 1: Extract terms from query
-    step_start = time.time()
-    tokenizer = Tokenizer(min_length=2, languages=['en', 'es'])
-
-    # Log raw terms BEFORE tokenization
-    raw_terms = query.lower().split()
-    logger.info(f"   Raw query terms: {raw_terms}")
-
-    query_terms = tokenizer.extract_terms(query)
-
-    # Log terms AFTER tokenization
-    logger.info(f"   Tokenized terms: {query_terms}")
-
-    # Identify and warn about removed terms
-    removed_terms = set(raw_terms) - set(query_terms) - {''}
-    if removed_terms:
-        # Check if any removed terms are critical gender terms
-        gender_terms = {'men', 'women', 'man', 'woman', 'male', 'female', 'unisex'}
-        removed_gender = removed_terms & gender_terms
-        if removed_gender:
-            logger.error(f"   ⚠️  CRITICAL: Gender terms removed: {removed_gender}")
-        else:
-            logger.debug(f"   Filtered terms (stopwords): {removed_terms}")
-
-    logger.info(f"⏱️  [STEP 1] Term extraction: {time.time() - step_start:.2f}s → {len(query_terms)} terms: {query_terms}")
-
-    if not query_terms:
-        logger.warning(f"No valid terms extracted from query: '{query}'")
-        return []
-
-    # Step 2: Get global embedding model (cached singleton)
+    # Step 1: Get global embedding model (cached singleton)
     step_start = time.time()
     embedding_model = _get_embedding_model()
-    logger.info(f"⏱️  [STEP 2] Get embedding model: {time.time() - step_start:.2f}s")
+    logger.info(f"⏱️  [STEP 1] Get embedding model: {time.time() - step_start:.2f}s")
+
+    # Step 2: Create embedding for the FULL QUERY (not individual terms)
+    step_start = time.time()
+    query_embedding = embedding_model.embed(query)
+    logger.info(f"⏱️  [STEP 2] Full query embedding: {time.time() - step_start:.2f}s")
+    logger.info(f"   Query: '{query}' → embedding shape: {len(query_embedding)}")
 
     # Step 3: Connect to vector store
     step_start = time.time()
@@ -461,149 +626,92 @@ async def semantic_product_search(
     vector_store = OracleVectorStore()
     logger.info(f"⏱️  [STEP 3] Vector Store connection: {time.time() - step_start:.2f}s")
 
-    # Step 4: Search for similar terms - TRACK PER QUERY TERM
+    # Step 4: Find top N similar TERMS using the full query embedding
     step_start = time.time()
-    search_times = []
+    similar_terms = vector_store.find_similar_terms(
+        query_embedding=query_embedding,
+        top_k=top_k_terms,
+        min_similarity=similarity_threshold
+    )
+    search_time = time.time() - step_start
 
-    # NEW APPROACH: Track matches per QUERY TERM, not per similar term
-    # query_term_matches: Maps query_term → [(article_id, similarity), ...]
-    query_term_matches = {term: [] for term in query_terms}
+    logger.info(f"⏱️  [STEP 4] Vector search: {search_time:.2f}s → {len(similar_terms)} similar terms found")
 
-    for idx, query_term in enumerate(query_terms, 1):
-        term_start = time.time()
-        logger.info(f"🔍 [{idx}/{len(query_terms)}] Processing query term: '{query_term}'")
-
-        # Get embedding for this query term
-        embed_start = time.time()
-        term_embedding = embedding_model.embed(query_term)
-        embed_time = time.time() - embed_start
-        logger.debug(f"  → Embedding generated in {embed_time:.3f}s (shape: {len(term_embedding)})")
-
-        # Find similar terms with HIGHER threshold for precision
-        search_start = time.time()
-        similar_terms = vector_store.find_similar_terms(
-            query_embedding=term_embedding,
-            top_k=10,
-            min_similarity=similarity_threshold  # Now 0.65 instead of 0.5
-        )
-        search_time = time.time() - search_start
-
-        term_total = time.time() - term_start
-        search_times.append(term_total)
-
-        logger.info(f"  ✅ Term '{query_term}' → {len(similar_terms)} matches (embed: {embed_time:.3f}s, search: {search_time:.3f}s, total: {term_total:.3f}s)")
-
-        # Log best matches for debugging
-        if similar_terms:
-            for similar_term, _, sim_score in similar_terms[:3]:
-                logger.info(f"    • '{similar_term}' (similarity: {sim_score:.3f})")
-        else:
-            logger.warning(f"    No similar terms found for '{query_term}'")
-
-        # Collect ALL article matches for this query term
-        for similar_term, article_ids, similarity in similar_terms:
-            for article_id in article_ids:
-                query_term_matches[query_term].append((article_id, similarity))
-
-    total_search_time = time.time() - step_start
-    avg_time = sum(search_times) / len(search_times) if search_times else 0
-    logger.info(f"⏱️  [STEP 4] All term searches: {total_search_time:.2f}s (avg: {avg_time:.3f}s per term)")
+    # Log top 10 similar terms for debugging
+    if similar_terms:
+        logger.info("   Top 10 similar terms:")
+        for term, article_ids, sim_score in similar_terms[:10]:
+            logger.info(f"      • '{term}' (sim: {sim_score:.3f}) → {len(article_ids)} products")
+    else:
+        logger.warning("   No similar terms found!")
+        vector_store.close()
+        return []
 
     vector_store.close()
 
-    # Step 5: OPTIMIZED INTELLIGENT MULTI-FACTOR SCORING
+    # Step 5: FREQUENCY-BASED SCORING
+    # Count how many times each product appears and sum their similarities
     logger.info("=" * 70)
-    logger.info("Starting optimized intelligent multi-factor scoring")
+    logger.info("Starting frequency-based scoring (products appearing in more terms = higher score)")
     logger.info("=" * 70)
 
     step_start = time.time()
 
-    # OPTIMIZATION 1: Restructure data for O(1) lookups instead of O(n) searches
-    # Build article_matches: article_id -> {query_term: best_similarity}
-    article_matches = defaultdict(dict)  # article_id -> {term: best_sim}
+    # article_scores: article_id -> {total_similarity, term_count, terms_matched}
+    article_data = defaultdict(lambda: {'total_sim': 0.0, 'count': 0, 'terms': []})
 
-    for query_term, matches in query_term_matches.items():
-        for article_id, similarity in matches:
-            # Keep only BEST similarity for each (article, term) pair
-            if query_term not in article_matches[article_id]:
-                article_matches[article_id][query_term] = similarity
-            else:
-                article_matches[article_id][query_term] = max(
-                    article_matches[article_id][query_term],
-                    similarity
-                )
+    for term, article_ids, similarity in similar_terms:
+        for article_id in article_ids:
+            article_data[article_id]['total_sim'] += similarity
+            article_data[article_id]['count'] += 1
+            if len(article_data[article_id]['terms']) < 5:  # Keep top 5 terms for logging
+                article_data[article_id]['terms'].append((term, similarity))
 
-    logger.info(f"Restructured data for {len(article_matches)} unique articles in {time.time() - step_start:.2f}s")
+    logger.info(f"   Found {len(article_data)} unique products across all similar terms")
 
-    # OPTIMIZATION 2: Pre-filter by minimum coverage BEFORE scoring
-    min_coverage = 0.5 if len(query_terms) > 2 else 0.33
-    min_terms_required = max(1, int(len(query_terms) * min_coverage))
-
-    logger.info(f"Pre-filtering: requiring at least {min_terms_required}/{len(query_terms)} query terms matched")
-
-    # Filter articles that don't meet minimum term count
-    candidate_articles = {
-        article_id: term_sims
-        for article_id, term_sims in article_matches.items()
-        if len(term_sims) >= min_terms_required
-    }
-
-    logger.info(f"After pre-filter: {len(candidate_articles)} / {len(article_matches)} articles remain")
-
-    if not candidate_articles:
-        logger.warning("No articles passed pre-filtering!")
-        return []
-
-    # OPTIMIZATION 3: Fast scoring with direct lookups (no nested loops/searches)
+    # Step 6: Calculate final scores
+    # Score = total_similarity * log(count + 1) to balance frequency and quality
+    import math
     article_scores = {}
     article_debug_info = {}
 
-    for article_id, term_similarities in candidate_articles.items():
-        matched_query_terms = len(term_similarities)
+    for article_id, data in article_data.items():
+        # Scoring formula: rewards both high similarity AND appearing in multiple terms
+        # Using log to prevent products with many low-quality matches from dominating
+        frequency_boost = math.log(data['count'] + 1)
+        avg_similarity = data['total_sim'] / data['count']
 
-        # Calculate weighted similarity (exponential weighting)
-        best_similarities = list(term_similarities.values())
-        total_weighted_similarity = sum(sim ** 2 for sim in best_similarities)
-
-        # Calculate component scores
-        coverage = matched_query_terms / len(query_terms)
-        avg_quality = total_weighted_similarity / matched_query_terms
-        boost = 1.2 if matched_query_terms == len(query_terms) else 1.0
-
-        # Combined score with coverage penalty
-        final_score = (coverage ** 1.5) * avg_quality * boost
+        # Final score: average similarity * frequency boost
+        final_score = avg_similarity * frequency_boost
 
         article_scores[article_id] = final_score
         article_debug_info[article_id] = {
-            'matched': matched_query_terms,
-            'total': len(query_terms),
-            'coverage': coverage,
-            'avg_quality': avg_quality,
-            'boost': boost,
-            'best_sims': [round(s, 3) for s in best_similarities]
+            'total_sim': round(data['total_sim'], 3),
+            'count': data['count'],
+            'avg_sim': round(avg_similarity, 3),
+            'freq_boost': round(frequency_boost, 3),
+            'top_terms': data['terms'][:3]
         }
 
     scoring_time = time.time() - step_start
-    logger.info(f"⏱️  Scored {len(article_scores)} articles in {scoring_time:.2f}s ({len(article_scores)/scoring_time:.0f} articles/sec)")
+    logger.info(f"⏱️  [STEP 5-6] Scoring: {scoring_time:.2f}s")
 
-    # Step 6: Apply minimum score filter (coverage already pre-filtered)
+    # Step 7: Filter by minimum score
     min_score = 0.3
-    logger.info(f"Applying minimum score filter: {min_score}")
-
     filtered_scores = {
         aid: score
         for aid, score in article_scores.items()
         if score >= min_score
     }
 
-    logger.info(f"After score filter: {len(filtered_scores)} / {len(article_scores)} articles passed")
+    logger.info(f"   After min_score filter ({min_score}): {len(filtered_scores)} / {len(article_scores)} products")
 
     if not filtered_scores:
         logger.warning("No articles passed quality filters!")
         return []
 
-    # Step 7: Efficiently select top N articles (O(n log k) instead of O(n log n))
-    logger.info(f"Selecting top {limit} articles by final score...")
+    # Step 8: Select top N articles
+    logger.info(f"   Selecting top {limit} products...")
     ranked_article_ids = heapq.nlargest(
         limit,
         filtered_scores.items(),
@@ -614,12 +722,12 @@ async def semantic_product_search(
     logger.info(f"Top {len(ranked_article_ids)} results:")
     for article_id, score in ranked_article_ids[:5]:
         info = article_debug_info[article_id]
+        terms_str = ', '.join([f"'{t}'" for t, _ in info['top_terms']])
         logger.info(
             f"  Article {article_id}: score={score:.3f} | "
-            f"matched={info['matched']}/{info['total']} | "
-            f"coverage={info['coverage']:.2f} | "
-            f"quality={info['avg_quality']:.3f} | "
-            f"sims={info['best_sims']}"
+            f"matches={info['count']} terms | "
+            f"avg_sim={info['avg_sim']} | "
+            f"terms=[{terms_str}]"
         )
 
     # Step 8: Fetch article details from PostgreSQL
@@ -647,6 +755,7 @@ async def semantic_product_search(
 
             price = await _get_average_price(session, article.article_id)
 
+            info = article_debug_info.get(article_id, {})
             products.append({
                 "id": article.article_id,
                 "name": article.prod_name,
@@ -656,13 +765,15 @@ async def semantic_product_search(
                 "product_group": article.product_group_name,
                 "color": article.colour_group_name,
                 "price": price,
-                "stock": 100,  # Mock
+                "stock": 100,
                 "images": _build_images(article.article_id),
-                "relevance_score": round(relevance_score, 3)
+                "relevance_score": round(relevance_score, 3),
+                "search_method": "v2_full_query",
+                "matched_terms": [t for t, _ in info.get('top_terms', [])][:3]
             })
 
         logger.info("=" * 70)
-        logger.info(f"SEARCH COMPLETE: Returning {len(products)} products")
+        logger.info(f"V2 SEARCH COMPLETE: Returning {len(products)} products")
         logger.info("=" * 70)
 
         # Log top 3 products for verification
@@ -677,8 +788,250 @@ async def semantic_product_search(
         # FINAL PERFORMANCE SUMMARY
         total_time = time.time() - start_time
         logger.info("=" * 80)
-        logger.info(f"✅ SEMANTIC SEARCH COMPLETE in {total_time:.2f}s")
+        logger.info(f"✅ V2 SEARCH COMPLETE in {total_time:.2f}s")
         logger.info(f"   Query: '{query}' → {len(products)} products returned")
         logger.info("=" * 80)
 
         return products
+
+
+async def _semantic_search_v3_distinctive(
+    query: str,
+    limit: int = 10,
+    similarity_threshold: float = 0.70  # High threshold for precision
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """
+    V3: Search specifically for DISTINCTIVE terms only.
+
+    Identifies non-generic terms (unicorn, dinosaur, heart, etc.) and searches
+    with high precision to find products that actually have those designs.
+
+    Returns:
+        Tuple of (products list, distinctive terms found)
+    """
+    import time
+    start_time = time.time()
+
+    limit = min(limit, 20)
+
+    logger.info("=" * 80)
+    logger.info(f"🎯 SEMANTIC SEARCH V3 (Distinctive Terms): '{query}'")
+    logger.info(f"   Parameters: limit={limit}, threshold={similarity_threshold}")
+    logger.info("=" * 80)
+
+    # Step 1: Identify distinctive terms (not in GENERIC_TERMS)
+    words = query.lower().split()
+    distinctive_terms = [w for w in words if w not in GENERIC_TERMS and len(w) > 2]
+
+    if not distinctive_terms:
+        logger.info("   No distinctive terms found in query, skipping V3")
+        return [], []
+
+    logger.info(f"   Distinctive terms identified: {distinctive_terms}")
+
+    # Step 2: Get embedding model and vector store
+    embedding_model = _get_embedding_model()
+    vector_store = OracleVectorStore()
+
+    # Step 3: Search ONLY for distinctive terms with high precision
+    all_matches = []
+
+    for term in distinctive_terms:
+        logger.info(f"   Searching for distinctive term: '{term}'")
+
+        term_embedding = embedding_model.embed(term)
+        similar_terms = vector_store.find_similar_terms(
+            query_embedding=term_embedding,
+            top_k=20,
+            min_similarity=similarity_threshold
+        )
+
+        logger.info(f"      → {len(similar_terms)} similar terms found:")
+
+        for similar_term, article_ids, similarity in similar_terms:
+            # Check for exact or close match
+            is_exact = similar_term.lower() == term.lower()
+            is_close = (term.lower() in similar_term.lower()) or (similar_term.lower() in term.lower())
+
+            if is_exact or is_close:
+                # 5x boost for exact, 2x for close
+                boost = 5.0 if is_exact else 2.0
+                adjusted_score = similarity * boost
+
+                for article_id in article_ids:
+                    all_matches.append((article_id, similar_term, adjusted_score, term))
+
+                match_type = "✓ EXACT" if is_exact else "~ CLOSE"
+                logger.info(f"         • '{similar_term}' (sim={similarity:.3f}, boost={boost}x) → {len(article_ids)} products {match_type}")
+
+    vector_store.close()
+
+    if not all_matches:
+        logger.info("   No products found matching distinctive terms")
+        return [], distinctive_terms
+
+    # Step 4: Dedupe and rank by score
+    article_scores = defaultdict(float)
+    article_matched_terms = defaultdict(list)
+
+    for article_id, similar_term, score, orig_term in all_matches:
+        article_scores[article_id] = max(article_scores[article_id], score)
+        if similar_term not in article_matched_terms[article_id]:
+            article_matched_terms[article_id].append(similar_term)
+
+    logger.info(f"   Found {len(article_scores)} unique products matching distinctive terms")
+
+    # Step 5: Get top products
+    top_articles = heapq.nlargest(limit, article_scores.items(), key=lambda x: x[1])
+
+    # Step 6: Fetch from PostgreSQL
+    async with Database.get_session() as session:
+        article_ids = [int(aid) for aid, _ in top_articles]
+        stmt = select(Article).where(Article.article_id.in_(article_ids))
+        result = await session.execute(stmt)
+        articles = {a.article_id: a for a in result.scalars().all()}
+
+        products = []
+        for article_id, relevance_score in top_articles:
+            article = articles.get(int(article_id))
+            if not article:
+                continue
+
+            price = await _get_average_price(session, article.article_id)
+            matched = article_matched_terms.get(article_id, [])
+
+            products.append({
+                "id": article.article_id,
+                "name": article.prod_name,
+                "description": article.detail_desc,
+                "category": article.product_type_name,
+                "department": article.department_name,
+                "product_group": article.product_group_name,
+                "color": article.colour_group_name,
+                "price": price,
+                "stock": 100,
+                "images": _build_images(article.article_id),
+                "relevance_score": round(relevance_score, 3),
+                "search_method": "v3_distinctive",
+                "matched_terms": matched[:3]
+            })
+
+        total_time = time.time() - start_time
+        logger.info("=" * 80)
+        logger.info(f"✅ V3 SEARCH COMPLETE in {total_time:.2f}s")
+        logger.info(f"   Distinctive terms: {distinctive_terms}")
+        logger.info(f"   Products found: {len(products)}")
+        if products:
+            logger.info(f"   Top result: {products[0]['name']}")
+        logger.info("=" * 80)
+
+        return products, distinctive_terms
+
+
+async def semantic_product_search(
+    query: str,
+    limit: int = 10
+) -> Dict[str, Any]:
+    """
+    HYBRID SEARCH: Executes V1, V2, and V3 in parallel, returns all result sets.
+
+    V1: Term-by-term search with exact match boost
+    V2: Full query semantic search
+    V3: Distinctive term search (unicorn, dinosaur, etc.) - HIGHEST PRIORITY
+
+    The LLM discriminator in semantic_product_search_node will combine/select
+    the best results, prioritizing V3 when distinctive terms are found.
+
+    Args:
+        query: Search query
+        limit: Results per method (each returns up to `limit` products)
+
+    Returns:
+        {
+            'v1_results': [...],
+            'v2_results': [...],
+            'v3_results': [...],  # Distinctive term matches - PRIORITY
+            'distinctive_terms': [...],  # Terms like 'unicorn' found
+            'query': query,
+            'stats': {...}
+        }
+    """
+    import asyncio
+    import time
+
+    start_time = time.time()
+
+    logger.info("=" * 80)
+    logger.info(f"🚀 HYBRID SEMANTIC SEARCH (V1+V2+V3): '{query}'")
+    logger.info(f"   Running V1 (terms), V2 (full), V3 (distinctive) in parallel...")
+    logger.info("=" * 80)
+
+    # Execute all three searches in parallel
+    try:
+        v1_results, v2_results, v3_result = await asyncio.gather(
+            _semantic_search_v1_terms(query, limit=limit),
+            _semantic_search_v2_full_query(query, limit=limit),
+            _semantic_search_v3_distinctive(query, limit=limit),
+            return_exceptions=True
+        )
+    except Exception as e:
+        logger.error(f"Error in hybrid search: {e}")
+        v1_results = []
+        v2_results = []
+        v3_result = ([], [])
+
+    # Handle exceptions from individual searches
+    if isinstance(v1_results, Exception):
+        logger.error(f"V1 search failed: {v1_results}")
+        v1_results = []
+    if isinstance(v2_results, Exception):
+        logger.error(f"V2 search failed: {v2_results}")
+        v2_results = []
+    if isinstance(v3_result, Exception):
+        logger.error(f"V3 search failed: {v3_result}")
+        v3_result = ([], [])
+
+    # V3 returns tuple (products, distinctive_terms)
+    v3_results, distinctive_terms = v3_result if isinstance(v3_result, tuple) else ([], [])
+
+    total_time = time.time() - start_time
+
+    # Log summary
+    logger.info("=" * 80)
+    logger.info(f"✅ HYBRID SEARCH COMPLETE in {total_time:.2f}s")
+    logger.info(f"   V1 (term-by-term): {len(v1_results)} products")
+    logger.info(f"   V2 (full query):   {len(v2_results)} products")
+    logger.info(f"   V3 (distinctive):  {len(v3_results)} products ← PRIORITY")
+    if distinctive_terms:
+        logger.info(f"   Distinctive terms: {distinctive_terms}")
+
+    # Log unique products
+    v1_ids = set(p['id'] for p in v1_results)
+    v2_ids = set(p['id'] for p in v2_results)
+    v3_ids = set(p['id'] for p in v3_results)
+
+    all_ids = v1_ids | v2_ids | v3_ids
+    in_all_three = v1_ids & v2_ids & v3_ids
+    in_v3_only = v3_ids - v1_ids - v2_ids
+
+    logger.info(f"   Total unique products: {len(all_ids)}")
+    logger.info(f"   In all 3 methods: {len(in_all_three)}")
+    logger.info(f"   Unique to V3: {len(in_v3_only)}")
+    logger.info("=" * 80)
+
+    return {
+        'v1_results': v1_results,
+        'v2_results': v2_results,
+        'v3_results': v3_results,
+        'distinctive_terms': distinctive_terms,
+        'query': query,
+        'stats': {
+            'v1_count': len(v1_results),
+            'v2_count': len(v2_results),
+            'v3_count': len(v3_results),
+            'distinctive_terms': distinctive_terms,
+            'total_unique': len(all_ids),
+            'in_all_three': len(in_all_three),
+            'total_time': round(total_time, 2)
+        }
+    }
