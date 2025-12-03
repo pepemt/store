@@ -269,13 +269,11 @@ export default function Chat() {
       {/* Chat Window */}
       {isOpen && (
         <Card
-          className={`fixed z-50 flex overflow-hidden shadow-2xl transition-all rounded-none sm:rounded-lg ${
+          className={`fixed z-50 flex overflow-hidden shadow-2xl transition-all duration-200 rounded-none sm:rounded-lg ${
             isExpanded
-              ? "inset-2 sm:inset-6 w-auto h-auto rounded-lg"
-              : "inset-0 sm:inset-auto sm:bottom-6 sm:right-6 sm:h[600px] sm:max-w-[calc(100vw-3rem)] sm:max-h-[calc(100vh-3rem)] top-[-1px]"
-          } ${!isExpanded && "sm:w-[500px] md:w-[500px]"} ${
-            !isExpanded && showConversations && "md:w-[700px]"
-          }`}
+              ? "inset-2 sm:inset-6 rounded-lg"
+              : "inset-0 sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[600px] sm:w-[420px] sm:max-h-[calc(100vh-3rem)]"
+          } ${!isExpanded && showConversations && "sm:w-[680px]"}`}
         >
           {/* Conversation List Sidebar */}
           {showConversations && (
@@ -285,17 +283,17 @@ export default function Chat() {
                 className="absolute inset-0 bg-black/50 z-10 sm:hidden"
                 onClick={() => setShowConversations(false)}
               />
-              <div className="absolute inset-y-0 left-0 w-[280px] z-20 sm:relative sm:z-auto flex-shrink-0 bg-white">
+              <div className="absolute inset-y-0 left-0 w-[260px] z-20 sm:relative sm:z-auto sm:w-[260px] flex-shrink-0 bg-white">
                 <ConversationList />
               </div>
             </>
           )}
 
           {/* Main Chat Area */}
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col min-h-0">
             {/* Header */}
             <div
-              className="flex items-center justify-between border-b px-4 py-4 text-white shadow-md"
+              className="flex items-center justify-between border-b px-4 py-4 text-white shadow-md flex-shrink-0"
               style={{ backgroundColor: "#6e348d" }}
             >
               <div className="flex items-center gap-2">
@@ -367,7 +365,7 @@ export default function Chat() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 p-4">
               {messages.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <div
@@ -695,7 +693,7 @@ export default function Chat() {
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              className="border-t bg-white p-4 relative"
+              className="border-t bg-white p-4 relative flex-shrink-0"
             >
               {/* Drag overlay */}
               {isDragOver && (
