@@ -48,6 +48,7 @@ export default function Chat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+
   // estado del avatar
   const [avatarState, setAvatarState] = useState<
     "standby" | "talking" | "thinking"
@@ -413,55 +414,66 @@ export default function Chat() {
                 </div>
               ) : (
                 <>
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`mb-4 flex ${
-                        message.sender === "user"
-                          ? "justify-end"
-                          : "justify-start"
-                      }`}
-                    >
+                  {messages.map((message) => {
+                    const isReviewMode =
+                      message.intent === "semantic_review_search" ||
+                      message.search_method === "semantic_reviews";
+
+                    return (
                       <div
-                        className={`max-w-[80%] ${
-                          message.sender === "user" ? "order-2" : "order-1"
+                        key={message.id}
+                        className={`mb-4 flex ${
+                          message.sender === "user"
+                            ? "justify-end"
+                            : "justify-start"
                         }`}
                       >
                         <div
-                          className={`rounded-lg px-4 py-2 shadow-sm ${
-                            message.sender === "user"
-                              ? "text-white"
-                              : "border bg-white text-gray-900"
+                          className={`max-w-[80%] ${
+                            message.sender === "user" ? "order-2" : "order-1"
                           }`}
-                          style={
-                            message.sender === "user"
-                              ? { backgroundColor: "#6e348d" }
-                              : {}
-                          }
                         >
-                          {/* Image thumbnail if present */}
-                          {message.image && (
-                            <div className="mb-2">
-                              <img
-                                src={message.image}
-                                alt="Imagen adjunta"
-                                className="max-w-[150px] max-h-[150px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() =>
-                                  window.open(message.image!, "_blank")
-                                }
-                              />
-                            </div>
-                          )}
-                          {message.text &&
-                            (message.sender === "assistant" ? (
-                              <Markdown className="text-gray-900">
-                                {message.text}
-                              </Markdown>
-                            ) : (
-                              <p className="whitespace-pre-wrap text-sm">
-                                {message.text}
-                              </p>
-                            ))}
+                          <div
+                            className={`rounded-lg px-4 py-2 shadow-sm ${
+                              message.sender === "user"
+                                ? "text-white"
+                                : "border bg-white text-gray-900"
+                            }`}
+                            style={
+                              message.sender === "user"
+                                ? { backgroundColor: "#6e348d" }
+                                : {}
+                            }
+                          >
+                            {/* Badge modo reviews para respuestas del asistente */}
+                            {message.sender === "assistant" && isReviewMode && (
+                              <span className="mb-2 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-semibold text-purple-700">
+                                Basado en opiniones de clientes
+                              </span>
+                            )}
+                            {/* Image thumbnail if present */}
+                            {message.image && (
+                              <div className="mb-2">
+                                <img
+                                  src={message.image}
+                                  alt="Imagen adjunta"
+                                  className="max-w-[150px] max-h-[150px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() =>
+                                    window.open(message.image!, "_blank")
+                                  }
+                                />
+                              </div>
+                            )}
+                            {message.text &&
+                              (message.sender === "assistant" ? (
+                                <Markdown className="text-gray-900">
+                                  {message.text}
+                                </Markdown>
+                              ) : (
+                                <p className="whitespace-pre-wrap text-sm">
+                                  {message.text}
+                                </p>
+                              ))}
 
                           {/* Products */}
                           {message.products && message.products.length > 0 && (
@@ -581,6 +593,14 @@ export default function Chat() {
                                                 </span>
                                               )}
                                           </div>
+                                          {isReviewMode && product.evidence_review && (
+                                          <p className="text-[10px] text-gray-600 italic">
+                                            Basado en esta opinión: “{product.evidence_review.length > 180
+                                              ? product.evidence_review.slice(0, 180) + "…"
+                                              : product.evidence_review}”
+                                          </p>
+                                        )}
+
 
                                           {/* Botones de acción */}
                                           <div
@@ -656,20 +676,21 @@ export default function Chat() {
                                 </p>
                               )}
                             </div>
-                          )}
-                        </div>
-                        <div
-                          className={`mt-1 text-xs text-gray-500 ${
-                            message.sender === "user"
-                              ? "text-right"
-                              : "text-left"
-                          }`}
-                        >
-                          {formatTime(message.timestamp)}
+                            )}
+                          </div>
+                          <div
+                            className={`mt-1 text-xs text-gray-500 ${
+                              message.sender === "user"
+                                ? "text-right"
+                                : "text-left"
+                            }`}
+                          >
+                            {formatTime(message.timestamp)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {isTyping && (
                     <div className="mb-4 flex justify-start">

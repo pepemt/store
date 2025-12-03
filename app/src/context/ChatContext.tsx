@@ -8,6 +8,7 @@ interface ChatMessage {
   products?: any[] | null
   intent?: string | null
   image?: string | null  // Base64 thumbnail for display in chat history
+  search_method?: string | null
 }
 
 // Image validation constants
@@ -192,7 +193,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       timestamp: new Date().toISOString(),
       products: message.products || null,
       intent: message.intent || null,
-      image: message.image || null  // Include image thumbnail for display
+      image: message.image || null,  // Include image thumbnail for display
+      search_method: message.search_method || null
     }
 
     let newConvId: string | null = null
@@ -315,7 +317,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 text: data.message,
                 sender: 'assistant',
                 products: data.products || null,
-                intent: data.intent || null
+                intent: data.intent || null,
+                search_method: data.search_method || null
               }, data.conversation_id)  // Backend devuelve el conversation_id original
               if (data.session_id) {
                 setSessionId(data.session_id)
