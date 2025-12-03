@@ -179,6 +179,164 @@ const ThinkingStepsDisplay: React.FC<{ steps: ThinkingStep[] }> = ({ steps }) =>
   );
 };
 
+// Interfaz para StepResult
+interface StepResultData {
+  id: string;
+  title: string;
+  description: string;
+  status: "completed" | "error" | "skipped";
+  products?: any[];
+  analysis?: any;
+  error?: string;
+}
+
+// Componente para mostrar resultados de pasos multi-agente
+const StepResultsDisplay: React.FC<{ stepResults: StepResultData[]; isExpanded?: boolean }> = ({ stepResults, isExpanded = false }) => {
+  // By default, expand all steps that have products (skip step_1 analysis)
+  const initialExpanded = new Set(
+    stepResults
+      .filter(s => s.products && s.products.length > 0)
+      .map(s => s.id)
+  );
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(initialExpanded);
+  // Track which steps show all products
+  const [showAllProducts, setShowAllProducts] = useState<Set<string>>(new Set());
+
+  const toggleStep = (stepId: string) => {
+    setExpandedSteps(prev => {
+      const next = new Set(prev);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  };
+
+  const toggleShowAll = (stepId: string) => {
+    setShowAllProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />;
+      case "error":
+        return <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />;
+      case "skipped":
+        return <XCircle className="h-3.5 w-3.5 text-orange-400 shrink-0" />;
+      default:
+        return <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 shrink-0" />;
+    }
+  };
+
+  // Filter to only show steps with products or analysis (skip empty steps)
+  const visibleSteps = stepResults.filter(
+    s => (s.products && s.products.length > 0) || s.analysis || s.status === "error"
+  );
+
+  if (visibleSteps.length === 0) return null;
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className="h-4 w-4 shrink-0" style={{ color: "#6e348d" }} />
+        <span className="text-xs font-semibold text-gray-700">
+          Resultados por categoría ({visibleSteps.length})
+        </span>
+      </div>
+
+      {visibleSteps.map(step => {
+        const isShowingAll = showAllProducts.has(step.id);
+        const initialCount = isExpanded ? 6 : 4;  // Show more in expanded view
+        const productsToShow = isShowingAll ? step.products : step.products?.slice(0, initialCount);
+        const hasMoreProducts = step.products && step.products.length > initialCount;
+
+        return (
+          <div key={step.id} className="border rounded-lg overflow-hidden bg-white shadow-sm">
+            {/* Header colapsable */}
+            <button
+              onClick={() => toggleStep(step.id)}
+              className="w-full flex items-center justify-between p-2.5 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {getStatusIcon(step.status)}
+                <span className="font-semibold text-xs text-gray-800 truncate">{step.title}</span>
+              </div>
+              <svg
+                className={`h-4 w-4 text-gray-500 transition-transform duration-200 shrink-0 ml-2 ${
+                  expandedSteps.has(step.id) ? "rotate-180" : ""
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Contenido expandible */}
+            {expandedSteps.has(step.id) && (
+              <div className="p-2.5 border-t bg-white">
+                {/* Descripción del paso (siempre visible si existe) */}
+                {step.description && (
+                  <p className="text-xs text-gray-600 mb-2">{step.description}</p>
+                )}
+
+                {/* Productos - grid: 2 cols normal, 3 cols en vista expandida */}
+                {productsToShow && productsToShow.length > 0 && (
+                  <div className={`grid gap-1.5 ${isExpanded ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    {productsToShow.map((product: any, idx: number) => (
+                      <div key={product.id || idx} className="border rounded p-1.5 bg-gray-50 hover:shadow-sm transition-shadow">
+                        <div className="aspect-square w-full bg-gray-100 rounded overflow-hidden mb-1">
+                          <img
+                            src={product.images?.[0]}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <p className="text-[10px] font-medium text-gray-800 leading-tight line-clamp-1" title={product.name}>
+                          {product.name}
+                        </p>
+                        <p className="text-xs font-bold" style={{ color: "#6e348d" }}>
+                          ${product.price?.toFixed(2)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Botón para ver más/menos productos */}
+                {hasMoreProducts && (
+                  <button
+                    onClick={() => toggleShowAll(step.id)}
+                    className="w-full mt-2 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    {isShowingAll
+                      ? "Ver menos"
+                      : `Ver ${step.products!.length - initialCount} más`
+                    }
+                  </button>
+                )}
+
+                {/* Error si hay */}
+                {step.error && (
+                  <div className="text-xs text-red-600 bg-red-50 p-2 rounded mt-2 border border-red-200">
+                    {step.error}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // Componente colapsable para mostrar historial de pensamiento en mensajes pasados
 const ThinkingStepsHistory: React.FC<{ steps: ThinkingStep[] }> = ({ steps }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -238,9 +396,19 @@ export default function Chat() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set()); // Track which messages show all products
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleExpandProducts = (messageId: number) => {
+    setExpandedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  };
 
 
   // estado del avatar
@@ -626,6 +794,18 @@ export default function Chat() {
                             message.sender === "user" ? "order-2" : "order-1"
                           }`}
                         >
+                          <div
+                            className={`rounded-lg px-4 py-2 shadow-sm ${
+                              message.sender === "user"
+                                ? "text-white"
+                                : "border bg-white text-gray-900"
+                            }`}
+                            style={
+                              message.sender === "user"
+                                ? { backgroundColor: "#6e348d" }
+                                : {}
+                            }
+                          >
                           {/* Image thumbnail if present */}
                           {message.image && (
                             <div className="mb-2">
@@ -649,6 +829,15 @@ export default function Chat() {
                                 {message.thinkingSteps && message.thinkingSteps.length > 0 && (
                                   <ThinkingStepsHistory steps={message.thinkingSteps} />
                                 )}
+
+                                {/* Step Results (multi-step task display) */}
+                                {(() => {
+                                  const stepResults = (message as any).step_results;
+                                  if (stepResults && stepResults.length > 0) {
+                                    return <StepResultsDisplay stepResults={stepResults} isExpanded={isExpanded} />;
+                                  }
+                                  return null;
+                                })()}
                               </>
                             ) : (
                               <p className="whitespace-pre-wrap text-sm">
@@ -656,8 +845,8 @@ export default function Chat() {
                               </p>
                             ))}
 
-                          {/* Products */}
-                          {message.products && message.products.length > 0 && (
+                          {/* Products - Only show if NO step_results (avoid duplicate display) */}
+                          {message.products && message.products.length > 0 && !(message as any).step_results?.length && (
                             <div className="mt-3 space-y-2">
                               <div className="flex items-center gap-2 mb-2">
                                 <Package
@@ -679,7 +868,7 @@ export default function Chat() {
                                 }`}
                               >
                                 {message.products
-                                  .slice(0, isExpanded ? 9 : 3)
+                                  .slice(0, expandedProducts.has(message.id) ? undefined : (isExpanded ? 9 : 3))
                                   .map((product: any, idx: number) => {
                                     return (
                                       <Card
@@ -840,21 +1029,17 @@ export default function Chat() {
                                     );
                                   })}
                               </div>
-                              {/* Mensaje si hay más productos */}
-                              {message.products.length >
-                                (isExpanded ? 9 : 3) && (
-                                <p className="text-xs text-gray-500 text-center pt-1">
-                                  +
-                                  {message.products.length -
-                                    (isExpanded ? 9 : 3)}{" "}
-                                  producto
-                                  {message.products.length -
-                                    (isExpanded ? 9 : 3) >
-                                  1
-                                    ? "s"
-                                    : ""}{" "}
-                                  más...
-                                </p>
+                              {/* Botón para ver más/menos productos */}
+                              {message.products.length > (isExpanded ? 9 : 3) && (
+                                <button
+                                  onClick={() => toggleExpandProducts(message.id)}
+                                  className="w-full mt-2 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                                >
+                                  {expandedProducts.has(message.id)
+                                    ? "Ver menos"
+                                    : `Ver ${message.products.length - (isExpanded ? 9 : 3)} más`
+                                  }
+                                </button>
                               )}
                             </div>
                             )}

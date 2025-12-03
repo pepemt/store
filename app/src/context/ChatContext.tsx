@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
 
+interface StepResultData {
+  id: string
+  title: string
+  description: string
+  status: 'completed' | 'error' | 'skipped'
+  products?: any[]
+  analysis?: any
+  error?: string
+}
+
 interface ChatMessage {
   id: number
   text: string
@@ -10,6 +20,8 @@ interface ChatMessage {
   image?: string | null  // Base64 thumbnail for display in chat history
   thinkingSteps?: ThinkingStep[] | null  // Pasos de pensamiento que llevaron a esta respuesta
   search_method?: string | null
+  step_results?: StepResultData[] | null  // Resultados de pasos multi-agente
+  outfit_components?: Record<string, any[]> | null  // Componentes de outfit
 }
 
 // Tipos para eventos de progreso (Thinking Steps)
@@ -234,7 +246,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       intent: message.intent || null,
       image: message.image || null,  // Include image thumbnail for display
       thinkingSteps: message.thinkingSteps || null,  // Include thinking steps for assistant messages
-      search_method: message.search_method || null
+      search_method: message.search_method || null,
+      step_results: message.step_results || null,  // Include step results for multi-step display
+      outfit_components: message.outfit_components || null  // Include outfit components
     }
 
     let newConvId: string | null = null
@@ -387,14 +401,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
               )
               // Capturar los thinking steps actuales de la ref (acceso síncrono)
               const currentSteps = [...thinkingStepsRef.current]
-              // Agregar mensaje con los pasos de pensamiento
+              // Debug logging for step_results
+              console.log('[WebSocket] Message received with step_results:', data.step_results?.length || 0)
+              if (data.step_results) {
+                console.log('[WebSocket] step_results:', data.step_results)
+              }
+              // Agregar mensaje con los pasos de pensamiento y step_results
               addMessage({
                 text: data.message,
                 sender: 'assistant',
                 products: data.products || null,
                 intent: data.intent || null,
                 thinkingSteps: currentSteps.length > 0 ? currentSteps : null,
-                search_method: data.search_method || null
+                search_method: data.search_method || null,
+                step_results: data.step_results || null,
+                outfit_components: data.outfit_components || null
               }, data.conversation_id)
               // Limpiar los pasos después de guardarlos
               setThinkingSteps([])

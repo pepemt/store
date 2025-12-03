@@ -2,13 +2,21 @@
 import logging
 import sys
 import os
+import importlib.util
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+_parent_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, _parent_dir)
 
 from models import AgentState
 from llm_config import llm
-from tools import get_product_recommendations
+
+# Import from tools.py (file) using importlib to avoid conflict with tools/ directory
+_tools_py_path = os.path.join(_parent_dir, "tools.py")
+_tools_spec = importlib.util.spec_from_file_location("tools_module", _tools_py_path)
+_tools_module = importlib.util.module_from_spec(_tools_spec)
+_tools_spec.loader.exec_module(_tools_module)
+get_product_recommendations = _tools_module.get_product_recommendations
 
 logger = logging.getLogger(__name__)
 

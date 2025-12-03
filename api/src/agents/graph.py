@@ -1,61 +1,84 @@
-"""Graph construction and compilation"""
+"""
+Unified orchestrator graph.
+
+This module provides the main agent graph that handles all types of queries:
+- Simple greetings and questions
+- Product searches
+- Image analysis
+- Budget handling
+- Complex outfit/comparison requests
+
+The orchestrator dynamically decides what tools to use based on context.
+"""
 
 from langgraph.graph import StateGraph, START, END
-from models import AgentState
-from nodes import (
-    semantic_product_search_node,
-    chat_node,
-    classifier_node,
-    vision_node,
-    semantic_review_search_node
+from typing import Literal
+
+from state import UnifiedAgentState
+from orchestrator import (
+    orchestrator_node,
+    executor_node,
+    response_generator_node,
+    should_continue
 )
-from routing import route_by_intent, route_by_image
+
+
+def _should_continue_wrapper(state: UnifiedAgentState) -> Literal["refine", "generate"]:
+    """Wrapper for should_continue to ensure correct return type."""
+    result = should_continue(state)
+    return "refine" if result == "refine" else "generate"
 
 
 def build_graph():
-    """Build multi-agent graph with vision support, intent classification and routing"""
-    builder = StateGraph(AgentState)
+    """
+    Build the unified orchestrator graph.
+
+    Architecture:
+    START -> orchestrator -> executor -> (refine?) -> response_generator -> END
+
+    The orchestrator:
+    - Understands full context (text, images, budget, conversation)
+    - Generates execution plans with dependency support
+    - Adapts dynamically based on results
+
+    Features:
+    - Dynamic tool selection (search, analyze, compare, budget)
+    - Parallel execution of independent operations
+    - Budget handling with currency conversion
+    - Contextual image analysis
+    - N-product comparison
+    - Variant responses for complex queries
+
+    Returns:
+        Compiled LangGraph StateGraph
+    """
+    builder = StateGraph(UnifiedAgentState)
 
     # Add nodes
-    builder.add_node("vision", vision_node)
-    builder.add_node("classifier", classifier_node)
-    builder.add_node("chat", chat_node)
-    builder.add_node("product_search", semantic_product_search_node)
-    builder.add_node("review_search", semantic_review_search_node)
+    builder.add_node("orchestrator", orchestrator_node)
+    builder.add_node("executor", executor_node)
+    builder.add_node("response_generator", response_generator_node)
 
+    # Flow: START -> orchestrator
+    builder.add_edge(START, "orchestrator")
 
-    # Flow: START -> check if image exists
-    # If image -> vision_node -> classifier
-    # If no image -> classifier directly
+    # Orchestrator -> executor
+    builder.add_edge("orchestrator", "executor")
+
+    # Executor -> conditional (refine or generate)
     builder.add_conditional_edges(
-        START,
-        route_by_image,
+        "executor",
+        _should_continue_wrapper,
         {
-            "has_image": "vision",
-            "no_image": "classifier"
+            "refine": "orchestrator",       # Loop back for refinement
+            "generate": "response_generator"  # Generate final response
         }
     )
 
-    # Vision always goes to classifier after processing
-    builder.add_edge("vision", "classifier")
-
-    # Conditional routing based on intent
-    # Both product_search and product_recommendations go to semantic search
-    builder.add_conditional_edges(
-        "classifier",
-        route_by_intent,
-        {
-            "chat": "chat",
-            "product_search": "product_search",
-            "product_recommendations": "product_search",  # Recomendaciones también usan búsqueda semántica
-            "semantic_review_search": "review_search"
-        }
-    )
-
-    # All paths lead to END
-    builder.add_edge("chat", END)
-    builder.add_edge("product_search", END)
-    builder.add_edge("review_search", END)
-
+    # Response generator -> END
+    builder.add_edge("response_generator", END)
 
     return builder.compile()
+
+
+__all__ = ["build_graph"]

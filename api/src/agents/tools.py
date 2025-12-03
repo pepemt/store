@@ -426,7 +426,7 @@ async def _semantic_search_v1_terms(
     import time
     start_time = time.time()
 
-    limit = min(limit, 20)
+    limit = min(limit, 30)  # Allow up to 30 results per strategy
 
     logger.info("=" * 80)
     logger.info(f"🔍 SEMANTIC SEARCH V1 (Term-by-Term): '{query}'")
@@ -601,8 +601,8 @@ async def _semantic_search_v2_full_query(
     import time
     start_time = time.time()
 
-    # Ensure limit doesn't exceed 20
-    limit = min(limit, 20)
+    # Allow up to 30 results
+    limit = min(limit, 30)
 
     logger.info("=" * 80)
     logger.info(f"🚀 SEMANTIC SEARCH V2 (Full Query Embedding): '{query}'")
@@ -812,7 +812,7 @@ async def _semantic_search_v3_distinctive(
     import time
     start_time = time.time()
 
-    limit = min(limit, 20)
+    limit = min(limit, 30)  # Allow up to 30 results
 
     logger.info("=" * 80)
     logger.info(f"🎯 SEMANTIC SEARCH V3 (Distinctive Terms): '{query}'")

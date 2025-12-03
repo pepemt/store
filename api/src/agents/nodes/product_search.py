@@ -3,14 +3,25 @@ import logging
 import asyncio
 import sys
 import os
+import importlib.util
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+_parent_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, _parent_dir)
 
 from models import AgentState
 from llm_config import llm
-from tools import search_products_by_name, search_products_by_category, semantic_product_search
 from metadata_cache import get_metadata_cache
+
+# Import from tools.py (file) using importlib to avoid conflict with tools/ directory
+_tools_py_path = os.path.join(_parent_dir, "tools.py")
+_tools_spec = importlib.util.spec_from_file_location("tools_module", _tools_py_path)
+_tools_module = importlib.util.module_from_spec(_tools_spec)
+_tools_spec.loader.exec_module(_tools_module)
+search_products_by_name = _tools_module.search_products_by_name
+search_products_by_category = _tools_module.search_products_by_category
+semantic_product_search = _tools_module.semantic_product_search
+get_product_recommendations = _tools_module.get_product_recommendations
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +139,6 @@ Response:"""
 
         # Strategy 5: Last resort - get general recommendations
         if not products:
-            from tools import get_product_recommendations
             products = await get_product_recommendations(limit=5)
             logger.info(f"Fallback to recommendations returned {len(products)} products")
 

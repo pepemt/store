@@ -2,14 +2,22 @@
 import logging
 import sys
 import os
+import importlib.util
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+_parent_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, _parent_dir)
 
 from models import AgentState, StepType, StepStatus
 from llm_config import llm
-from tools import semantic_product_search
 from metadata_cache import get_metadata_cache
+
+# Import from tools.py (file) using importlib to avoid conflict with tools/ directory
+_tools_py_path = os.path.join(_parent_dir, "tools.py")
+_tools_spec = importlib.util.spec_from_file_location("tools_module", _tools_py_path)
+_tools_module = importlib.util.module_from_spec(_tools_spec)
+_tools_spec.loader.exec_module(_tools_module)
+semantic_product_search = _tools_module.semantic_product_search
 from progress_utils import emit_progress, emit_parallel_start, emit_parallel_end
 
 logger = logging.getLogger(__name__)

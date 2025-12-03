@@ -34,6 +34,12 @@ class StepType(str, Enum):
     DISCRIMINATOR = "discriminator"         # LLM discriminador
     RESPONSE_GEN = "response_gen"           # Generación de respuesta final
     REVIEW_SEARCH = "review_search"         # Búsqueda por reviews
+    # New step types for orchestrator
+    ORCHESTRATOR = "orchestrator"           # Orchestrator planning
+    EXECUTOR = "executor"                   # Plan execution
+    ANALYZE = "analyze"                     # Image/context analysis
+    COMPARE = "compare"                     # Product comparison
+    BUDGET = "budget"                       # Budget calculation
 
 
 @dataclass
@@ -174,3 +180,18 @@ class AgentState(TypedDict):
 
     # Callback para eventos de progreso (thinking steps)
     progress_callback: NotRequired[Optional[ProgressCallback]]
+
+
+# -----------------------------
+# Re-export new unified types
+# -----------------------------
+# For new orchestrator features, import from state.py:
+# from state import UnifiedAgentState, ExecutionPlan, BudgetContext, etc.
+#
+# The following are available for import:
+# - UnifiedAgentState: New unified state for orchestrator
+# - ExecutionPlan, ExecutionStep: Plan types
+# - BudgetContext: Budget with currency conversion
+# - ImageData, ImageAnalysis: Image types
+# - ComparisonResult: Product comparison
+# - VariantSection, StructuredResponse: Frontend response types

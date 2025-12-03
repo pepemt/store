@@ -22,7 +22,8 @@ if agents_path not in sys.path:
 
 from graph import build_graph
 from chat_session import get_session_manager
-from models import AgentState, ThinkingStep
+from models import ThinkingStep
+from state import UnifiedAgentState
 from metadata_cache import get_metadata_cache
 
 logger = logging.getLogger(__name__)
@@ -49,12 +50,12 @@ async def initialize_metadata():
 
 
 def get_agent_graph():
-    """Get or create the agent graph instance."""
+    """Get or create the unified orchestrator graph instance."""
     global _agent_graph
     if _agent_graph is None:
         try:
             _agent_graph = build_graph()
-            logger.info("Agent graph initialized successfully")
+            logger.info("Agent graph initialized: ORCHESTRATOR")
         except Exception as e:
             logger.error(f"Error building agent graph: {e}", exc_info=True)
             raise
@@ -282,7 +283,8 @@ async def websocket_chat_endpoint(
                 )
 
                 # Create initial state with image support
-                initial_state: AgentState = {
+                # The state format works for both legacy and orchestrator graphs
+                initial_state = {
                     "messages": agent_messages,
                     "intent": "",
                     "next_action": "",
@@ -299,6 +301,14 @@ async def websocket_chat_endpoint(
                     "has_image": image_data is not None,
                     # Progress callback for streaming events
                     "progress_callback": progress_callback,
+                    # Orchestrator-specific fields
+                    "execution_plan": None,
+                    "execution_results": {},
+                    "user_intent_summary": "",
+                    "budget": None,
+                    "iteration": 0,
+                    "max_iterations": 5,
+                    "structured_response": None,
                 }
 
                 # Run agent graph with ainvoke (async)
@@ -308,10 +318,18 @@ async def websocket_chat_endpoint(
                 logger.info(log_msg)
                 result = await agent_graph.ainvoke(initial_state)
 
-                # Extract response
-                assistant_message = result["messages"][-1].content if result.get("messages") else "Lo siento, no pude procesar tu mensaje."
+                # Extract response - handle both legacy and orchestrator formats
+                if result.get("response"):
+                    # Orchestrator mode: response is in 'response' field
+                    assistant_message = result["response"]
+                elif result.get("messages"):
+                    # Legacy mode: response is in messages
+                    assistant_message = result["messages"][-1].content
+                else:
+                    assistant_message = "Lo siento, no pude procesar tu mensaje."
+
                 products = result.get("products_found", [])
-                intent = result.get("intent", "unknown")
+                intent = result.get("intent") or result.get("user_intent_summary", "unknown")
 
                 # Add assistant message to session
                 chat_session.add_message("assistant", assistant_message, msg_conversation_id)
@@ -343,6 +361,36 @@ async def websocket_chat_endpoint(
                 # Include products if found
                 if products:
                     response_data["products"] = products
+
+                # Include structured response if available (orchestrator mode)
+                structured_response = result.get("structured_response")
+                logger.info(f"structured_response available: {structured_response is not None}")
+                if structured_response:
+                    logger.info(f"structured_response keys: {list(structured_response.keys())}")
+                    response_data["structured_response"] = structured_response
+                    # If it has variants, mark the response type
+                    if structured_response.get("type") == "variants":
+                        response_data["has_variants"] = True
+                        response_data["variants"] = structured_response.get("variants", [])
+                    # If it has comparison table
+                    if structured_response.get("comparison_table"):
+                        response_data["comparison_table"] = structured_response["comparison_table"]
+                    # If it has budget summary
+                    if structured_response.get("budget_summary"):
+                        response_data["budget_summary"] = structured_response["budget_summary"]
+                    # If it has step results (multi-step display)
+                    if structured_response.get("step_results"):
+                        logger.info(f"step_results count: {len(structured_response['step_results'])}")
+                        for sr in structured_response["step_results"]:
+                            logger.info(f"  - {sr.get('id')}: {sr.get('title')} - {len(sr.get('products', []))} productos")
+                        response_data["step_results"] = structured_response["step_results"]
+                    else:
+                        logger.warning("No step_results in structured_response")
+                    # If it has outfit components
+                    if structured_response.get("outfit_components"):
+                        response_data["outfit_components"] = structured_response["outfit_components"]
+                else:
+                    logger.warning("No structured_response in result")
 
                 await manager.send_message(session_id, response_data)
 
