@@ -8,8 +8,8 @@ interface ChatMessage {
   products?: any[] | null
   intent?: string | null
   image?: string | null  // Base64 thumbnail for display in chat history
-<<<<<<< HEAD
   thinkingSteps?: ThinkingStep[] | null  // Pasos de pensamiento que llevaron a esta respuesta
+  search_method?: string | null
 }
 
 // Tipos para eventos de progreso (Thinking Steps)
@@ -38,9 +38,6 @@ export interface ThinkingStep {
   is_parallel?: boolean
   parallel_group?: string | null
   duration_ms?: number | null
-=======
-  search_method?: string | null
->>>>>>> e87ac5a165039c256863c08dd659ef3a12946287
 }
 
 // Image validation constants
@@ -236,11 +233,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       products: message.products || null,
       intent: message.intent || null,
       image: message.image || null,  // Include image thumbnail for display
-<<<<<<< HEAD
-      thinkingSteps: message.thinkingSteps || null  // Include thinking steps for assistant messages
-=======
+      thinkingSteps: message.thinkingSteps || null,  // Include thinking steps for assistant messages
       search_method: message.search_method || null
->>>>>>> e87ac5a165039c256863c08dd659ef3a12946287
     }
 
     let newConvId: string | null = null
@@ -399,16 +393,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 sender: 'assistant',
                 products: data.products || null,
                 intent: data.intent || null,
-<<<<<<< HEAD
-                thinkingSteps: currentSteps.length > 0 ? currentSteps : null
+                thinkingSteps: currentSteps.length > 0 ? currentSteps : null,
+                search_method: data.search_method || null
               }, data.conversation_id)
               // Limpiar los pasos después de guardarlos
               setThinkingSteps([])
               thinkingStepsRef.current = []
-=======
-                search_method: data.search_method || null
-              }, data.conversation_id)  // Backend devuelve el conversation_id original
->>>>>>> e87ac5a165039c256863c08dd659ef3a12946287
               if (data.session_id) {
                 setSessionId(data.session_id)
               }

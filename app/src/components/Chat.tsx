@@ -626,7 +626,6 @@ export default function Chat() {
                             message.sender === "user" ? "order-2" : "order-1"
                           }`}
                         >
-<<<<<<< HEAD
                           {/* Image thumbnail if present */}
                           {message.image && (
                             <div className="mb-2">
@@ -656,49 +655,6 @@ export default function Chat() {
                                 {message.text}
                               </p>
                             ))}
-=======
-                          <div
-                            className={`rounded-lg px-4 py-2 shadow-sm ${
-                              message.sender === "user"
-                                ? "text-white"
-                                : "border bg-white text-gray-900"
-                            }`}
-                            style={
-                              message.sender === "user"
-                                ? { backgroundColor: "#6e348d" }
-                                : {}
-                            }
-                          >
-                            {/* Badge modo reviews para respuestas del asistente */}
-                            {message.sender === "assistant" && isReviewMode && (
-                              <span className="mb-2 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-semibold text-purple-700">
-                                Basado en opiniones de clientes
-                              </span>
-                            )}
-                            {/* Image thumbnail if present */}
-                            {message.image && (
-                              <div className="mb-2">
-                                <img
-                                  src={message.image}
-                                  alt="Imagen adjunta"
-                                  className="max-w-[150px] max-h-[150px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() =>
-                                    window.open(message.image!, "_blank")
-                                  }
-                                />
-                              </div>
-                            )}
-                            {message.text &&
-                              (message.sender === "assistant" ? (
-                                <Markdown className="text-gray-900">
-                                  {message.text}
-                                </Markdown>
-                              ) : (
-                                <p className="whitespace-pre-wrap text-sm">
-                                  {message.text}
-                                </p>
-                              ))}
->>>>>>> e87ac5a165039c256863c08dd659ef3a12946287
 
                           {/* Products */}
                           {message.products && message.products.length > 0 && (
