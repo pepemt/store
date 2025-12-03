@@ -104,8 +104,6 @@ class ReviewSearchEngine:
                 "article_id": int(row.get("article_id") or row.get("product_code") or row.get("id")),
                 "review": row.get("review") or row.get("review_text", ""),
                 "review_stars": float(row.get("review_stars", 0)),
-                "cluster_id": int(row.get("cluster_id", -1)),
-                "cluster_label": row.get("cluster_label", ""),
                 "similarity": float(score),
             })
         return results
@@ -158,7 +156,6 @@ class ReviewSearchEngine:
                     "images": _build_images(art.article_id),
                     "score": round(float(score), 3),
                     "evidence_review": review_hit.get("review", ""),
-                    "evidence_cluster": review_hit.get("cluster_label", ""),
                 })
                 if len(result) >= limit:
                     break
