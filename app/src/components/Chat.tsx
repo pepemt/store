@@ -731,8 +731,8 @@ export default function Chat() {
                 {/* Micrófono */}
                 <MicButton
                   apiUrl={TRANSCRIBE_URL}
-                  modelName="medium"
-                  maxMs={45000}
+                  modelName="small"
+                  maxMs={30000}
                   onTranscribed={async (text) => {
                     setAvatarState("thinking");
                     await sendMessage(text);
