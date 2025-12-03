@@ -5,7 +5,7 @@ import os
 
 # Paths para imports locales y review_search en api/
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))            # .../api/src/agents
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))  # .../api
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))  # .../api
 
 from models import AgentState
 from llm_config import llm
