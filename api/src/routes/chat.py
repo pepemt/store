@@ -289,6 +289,7 @@ async def websocket_chat_endpoint(
                     logger.info(f"Saved image description to session context for future reference")
 
                 chat_session.update_context(context_update, msg_conversation_id)
+                search_method = result.get("search_method")
 
                 # Send response to client
                 response_data = {
@@ -298,7 +299,8 @@ async def websocket_chat_endpoint(
                     "session_id": session_id,
                     "conversation_id": msg_conversation_id
                 }
-
+                if search_method:
+                    response_data["search_method"] = search_method
                 # Include products if found
                 if products:
                     response_data["products"] = products

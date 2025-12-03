@@ -35,16 +35,17 @@ async def semantic_review_search_node(state: AgentState) -> dict:
         products = await engine.get_products(ranked, limit=10)
 
         if products:
-            products_text = "\n".join([
-                f"- {p['name']} (${p['price']:.2f}) • {p.get('category','')} • {p.get('color','')} • score {p.get('score','')}"
-                for p in products
-            ])
-            response_prompt = f"""El usuario pidió: "{user_message}"
-Encontré productos basados en reviews similares (necesidades/uso).
-Resultados:
-{products_text}
+            items_text = "\n".join(
+                f"- {p['name']} (${p['price']:.2f}) | {p.get('category','')} | "
+                f"evidencia: \"{(p.get('evidence_review','')[:177] + '...') if p.get('evidence_review') and len(p.get('evidence_review'))>180 else p.get('evidence_review','')}\""
+                for p in products[:5]
+            )
+            response_prompt = f"""Usuario: "{user_message}"
+He buscado productos basándome en opiniones/reviews similares a esa necesidad.
+Resultados (con la review más parecida como evidencia):
+{items_text}
 
-Regresa una respuesta breve en el mismo idioma del usuario, menciona que se basa en opiniones/reviews y resalta 2-3 productos con sus ventajas."""
+Responde en el mismo idioma que el usuario, menciona que las recomendaciones se basan en opiniones/reviews, y resalta 2-3 productos explicando por qué encajan según la evidencia mostrada."""
             response = await llm.ainvoke([{"role": "user", "content": response_prompt}])
             content = response.content
         else:
