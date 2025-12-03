@@ -53,6 +53,15 @@ class CategoryResponse(BaseModel):
     categories: List[str]
 
 
+class FilterOptionsResponse(BaseModel):
+    """Opciones disponibles para filtros."""
+    categories: List[str]
+    colors: List[str]
+    product_types: List[str]
+    departments: List[str]
+    price_range: dict  # {"min": float, "max": float}
+
+
 class ProductIdResponse(BaseModel):
     id: int
     name: str
@@ -151,6 +160,10 @@ async def get_products(
     search: Optional[str] = Query(None, description="Término de búsqueda"),
     category: Optional[str] = Query(None, description="Filtrar por categoría (product_group_name)"),
     department: Optional[str] = Query(None, description="Filtrar por departamento"),
+    color_group: Optional[str] = Query(None, description="Filtrar por color"),
+    product_type: Optional[str] = Query(None, description="Filtrar por tipo de producto"),
+    price_min: Optional[float] = Query(None, ge=0, description="Precio mínimo"),
+    price_max: Optional[float] = Query(None, ge=0, description="Precio máximo"),
 ):
     """
     Lista de productos con paginación y filtros.
@@ -158,6 +171,9 @@ async def get_products(
       - search: ILIKE en nombre, descripción, tipo y grupo
       - category: product_group_name
       - department: department_name
+      - color_group: colour_group_name
+      - product_type: product_type_name
+      - price_min/price_max: rango de precios
     """
     try:
         async with Database.get_session() as session:
@@ -184,9 +200,20 @@ async def get_products(
             if department:
                 conditions.append(Article.department_name == department)
 
+            if color_group:
+                conditions.append(Article.colour_group_name == color_group)
+
+            if product_type:
+                conditions.append(Article.product_type_name == product_type)
+
             if conditions:
                 base_q = base_q.where(*conditions)
                 count_q = count_q.where(*conditions)
+
+            # Filtro de precio (requiere subquery para avg de transacciones)
+            # Para simplificar, aplicamos el filtro después de obtener resultados
+            # si hay filtro de precio activo
+            has_price_filter = price_min is not None or price_max is not None
 
             # Total
             total = (await session.execute(count_q)).scalar() or 0
@@ -195,19 +222,41 @@ async def get_products(
             offset = (page - 1) * per_page
             q = base_q.order_by(Article.article_id).offset(offset).limit(per_page)
 
-            rows = (await session.execute(q)).scalars().all()
+            # Si hay filtro de precio, necesitamos obtener más resultados y filtrar
+            if has_price_filter:
+                # Obtener más productos para compensar los que serán filtrados
+                q = base_q.order_by(Article.article_id).limit(per_page * 5)
+                rows = (await session.execute(q)).scalars().all()
 
-            # Mapear a respuesta
-            products: List[ProductResponse] = []
-            for row in rows:
-                price = await _get_average_price(session, row.article_id)
-                products.append(_to_product_response(row, price))
+                # Mapear y filtrar por precio
+                products: List[ProductResponse] = []
+                for row in rows:
+                    price = await _get_average_price(session, row.article_id)
+                    if price_min is not None and price < price_min:
+                        continue
+                    if price_max is not None and price > price_max:
+                        continue
+                    products.append(_to_product_response(row, price))
+                    if len(products) >= per_page:
+                        break
 
-            total_pages = (total + per_page - 1) // per_page
+                # Para filtros de precio, el total es aproximado
+                filtered_total = len(products)
+                total_pages = 1  # Simplificado para filtros de precio
+            else:
+                rows = (await session.execute(q)).scalars().all()
+
+                # Mapear a respuesta
+                products = []
+                for row in rows:
+                    price = await _get_average_price(session, row.article_id)
+                    products.append(_to_product_response(row, price))
+
+                total_pages = (total + per_page - 1) // per_page
 
             return ProductListResponse(
                 products=products,
-                total=total,
+                total=total if not has_price_filter else len(products),
                 page=page,
                 per_page=per_page,
                 total_pages=total_pages,
@@ -298,6 +347,55 @@ async def get_departments():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener departamentos: {str(e)}",
+        )
+
+
+@router.get("/filters", response_model=FilterOptionsResponse)
+async def get_filter_options():
+    """
+    Devuelve todas las opciones disponibles para filtros.
+    Consolidado en un solo endpoint para reducir requests del frontend.
+    """
+    try:
+        async with Database.get_session() as session:
+            # Categorías
+            q_cat = select(Article.product_group_name).distinct().order_by(Article.product_group_name)
+            categories = [r[0] for r in (await session.execute(q_cat)).fetchall() if r[0]]
+
+            # Colores
+            q_colors = select(Article.colour_group_name).distinct().order_by(Article.colour_group_name)
+            colors = [r[0] for r in (await session.execute(q_colors)).fetchall() if r[0]]
+
+            # Tipos de producto
+            q_types = select(Article.product_type_name).distinct().order_by(Article.product_type_name)
+            product_types = [r[0] for r in (await session.execute(q_types)).fetchall() if r[0]]
+
+            # Departamentos
+            q_dept = select(Article.department_name).distinct().order_by(Article.department_name)
+            departments = [r[0] for r in (await session.execute(q_dept)).fetchall() if r[0]]
+
+            # Rango de precios (de transacciones)
+            q_price = select(
+                func.min(Transaction.price),
+                func.max(Transaction.price)
+            )
+            price_result = (await session.execute(q_price)).fetchone()
+            price_range = {
+                "min": float(price_result[0]) if price_result[0] else 0.0,
+                "max": float(price_result[1]) if price_result[1] else 1000.0,
+            }
+
+            return FilterOptionsResponse(
+                categories=categories,
+                colors=colors,
+                product_types=product_types,
+                departments=departments,
+                price_range=price_range,
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener opciones de filtros: {str(e)}",
         )
 
 

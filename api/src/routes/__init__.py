@@ -13,6 +13,8 @@ from .images import router as image_router
 from .recommendations import router as recommendations_router
 from .metadata import router as metadata_router
 from .transcribe import router as transcribe_router
+from .landing import router as landing_router
+from .landing import warmup_cache as warmup_landing_cache
 
 __all__ = [
     "auth_router",
@@ -25,4 +27,6 @@ __all__ = [
     "recommendations_router",
     "metadata_router",
     "transcribe_router",
+    "landing_router",
+    "warmup_landing_cache",
 ]

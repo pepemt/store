@@ -22,6 +22,9 @@ CACHE_DIR = Path("/tmp/image_cache")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 image_cache = Cache(str(CACHE_DIR), size_limit=1 * 1024**3)  # 1GB
 
+# Cache para verificación de bucket (evita verificar en cada request)
+_bucket_verified = False
+
 router = APIRouter()
 
 
@@ -294,14 +297,18 @@ async def get_image(
     Returns:
         Imagen como StreamingResponse con headers de caché
     """
+    global _bucket_verified
+
     try:
-        # Verificar que el bucket existe (solo una vez al inicio)
-        bucket_exists = S3Service.bucket_exists()
-        if not bucket_exists:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
-            )
+        # Verificar bucket solo una vez (no en cada request)
+        if not _bucket_verified:
+            bucket_exists = S3Service.bucket_exists()
+            if not bucket_exists:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Bucket '{S3Service.get_bucket_name()}' no existe en S3. Por favor crea el bucket primero."
+                )
+            _bucket_verified = True
 
         # Determinar content type basado en la extensión
         content_type = "image/jpeg"  # Default

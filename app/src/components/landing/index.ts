@@ -1,0 +1,8 @@
+export { AnimatedSection, fadeInUp, staggerContainer, cardHover, scaleOnHover } from './AnimatedSection'
+export { CategoryGrid } from './CategoryGrid'
+export { Bestsellers } from './Bestsellers'
+export { DepartmentCards } from './DepartmentCards'
+export { NewArrivals } from './NewArrivals'
+export { PromoBanner } from './PromoBanner'
+export { Testimonials } from './Testimonials'
+export { Newsletter } from './Newsletter'

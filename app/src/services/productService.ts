@@ -32,6 +32,18 @@ interface GetProductsOptions {
   search?: string
   category?: string
   department?: string
+  color_group?: string
+  product_type?: string
+  price_min?: number
+  price_max?: number
+}
+
+interface FilterOptions {
+  categories: string[]
+  colors: string[]
+  product_types: string[]
+  departments: string[]
+  price_range: { min: number; max: number }
 }
 
 interface UserRecommendation {
@@ -48,7 +60,17 @@ interface ProductSimilarity {
 export const productService = {
   async getProducts(options: GetProductsOptions = {}): Promise<ProductsResponse> {
     try {
-      const { page = 1, per_page = 20, search, category, department } = options
+      const {
+        page = 1,
+        per_page = 20,
+        search,
+        category,
+        department,
+        color_group,
+        product_type,
+        price_min,
+        price_max,
+      } = options
 
       const params = new URLSearchParams({
         page: page.toString(),
@@ -58,6 +80,10 @@ export const productService = {
       if (search) params.append('search', search)
       if (category) params.append('category', category)
       if (department) params.append('department', department)
+      if (color_group) params.append('color_group', color_group)
+      if (product_type) params.append('product_type', product_type)
+      if (price_min !== undefined) params.append('price_min', price_min.toString())
+      if (price_max !== undefined) params.append('price_max', price_max.toString())
 
       const response = await fetch(`${config.PRODUCTS_URL}/?${params.toString()}`)
       const data = await response.json()
@@ -138,6 +164,22 @@ export const productService = {
       return data.categories || []
     } catch (error) {
       console.error('Error al obtener departamentos:', error)
+      throw error
+    }
+  },
+
+  async getFilterOptions(): Promise<FilterOptions> {
+    try {
+      const response = await fetch(`${config.PRODUCTS_URL}/filters`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al obtener opciones de filtros')
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error al obtener opciones de filtros:', error)
       throw error
     }
   },

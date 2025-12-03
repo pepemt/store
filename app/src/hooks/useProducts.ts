@@ -29,20 +29,41 @@ interface GetProductsOptions {
   search?: string
   category?: string
   department?: string
+  color_group?: string
+  product_type?: string
+  price_min?: number
+  price_max?: number
+}
+
+interface FilterOptions {
+  categories: string[]
+  colors: string[]
+  product_types: string[]
+  departments: string[]
+  price_range: { min: number; max: number }
 }
 
 /**
  * Hook para obtener lista de productos con cache automático
  */
 export function useProducts(options: GetProductsOptions = {}): UseQueryResult<ProductsResponse, Error> {
-  const { page = 1, per_page = 12, search, category, department } = options
+  const {
+    page = 1,
+    per_page = 12,
+    search,
+    category,
+    department,
+    color_group,
+    product_type,
+    price_min,
+    price_max,
+  } = options
 
   return useQuery({
-    queryKey: ['products', { page, per_page, search, category, department }],
+    queryKey: ['products', { page, per_page, search, category, department, color_group, product_type, price_min, price_max }],
     queryFn: () => productService.getProducts(options),
-    // Configuración específica para lista de productos
-    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
-    gcTime: 10 * 60 * 1000, // Mantener en cache 10 minutos
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
 }
 
@@ -78,8 +99,20 @@ export function useSearchProducts(query: string, limit = 20) {
   return useQuery({
     queryKey: ['search', query, limit],
     queryFn: () => productService.searchProducts(query, limit),
-    enabled: !!query && query.length > 0, // Solo ejecutar si hay query
-    staleTime: 2 * 60 * 1000, // Cache por 2 minutos (búsquedas más dinámicas)
+    enabled: !!query && query.length > 0,
+    staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Hook para obtener opciones de filtros con cache largo
+ */
+export function useFilterOptions(): UseQueryResult<FilterOptions, Error> {
+  return useQuery({
+    queryKey: ['filterOptions'],
+    queryFn: () => productService.getFilterOptions(),
+    staleTime: 60 * 60 * 1000, // Cache por 1 hora (filtros raramente cambian)
+    gcTime: 2 * 60 * 60 * 1000,
   })
 }

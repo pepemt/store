@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Search, Star, ShoppingCart, Loader, Filter, X } from 'lucide-react'
-import { useProducts, useCategories } from '../hooks/useProducts'
+import { Search, Star, ShoppingCart, Loader, SlidersHorizontal, X } from 'lucide-react'
+import { useProducts, useFilterOptions } from '../hooks/useProducts'
 import { useCart } from '../context/CartContext'
 import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import CachedImage from '../components/CachedImage'
+import FilterSidebar from '../components/FilterSidebar'
 
 interface Product {
   id: string | number
@@ -25,9 +26,18 @@ export default function ProductList() {
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
   const [page, setPage] = useState(1)
-  const selectedCategory = searchParams.get('category') || ''
+  const [showFilters, setShowFilters] = useState(false)
 
-  // Usar React Query para productos (con cache automático)
+  // Extraer filtros de URL
+  const activeFilters = useMemo(() => ({
+    category: searchParams.get('category') || undefined,
+    color_group: searchParams.get('color_group') || undefined,
+    product_type: searchParams.get('product_type') || undefined,
+    price_min: searchParams.get('price_min') ? Number(searchParams.get('price_min')) : undefined,
+    price_max: searchParams.get('price_max') ? Number(searchParams.get('price_max')) : undefined,
+  }), [searchParams])
+
+  // Usar React Query para productos
   const {
     data: productsData,
     isLoading: loading,
@@ -36,14 +46,14 @@ export default function ProductList() {
     page,
     per_page: 12,
     search: searchParams.get('q') || undefined,
-    category: selectedCategory || undefined,
+    ...activeFilters,
   })
 
-  // Usar React Query para categorías (cache de 1 hora)
+  // Usar React Query para opciones de filtros
   const {
-    data: categories = [],
-    isLoading: loadingCategories,
-  } = useCategories()
+    data: filterOptions,
+    isLoading: loadingFilters,
+  } = useFilterOptions()
 
   const products = productsData?.products || []
   const totalPages = productsData?.total_pages || 1
@@ -51,25 +61,27 @@ export default function ProductList() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    const params: Record<string, string> = {}
+    const params = new URLSearchParams(searchParams)
     if (searchQuery.trim()) {
-      params.q = searchQuery.trim()
-    }
-    if (selectedCategory) {
-      params.category = selectedCategory
+      params.set('q', searchQuery.trim())
+    } else {
+      params.delete('q')
     }
     setSearchParams(params)
     setPage(1)
   }
 
-  const handleCategoryChange = (category: string) => {
-    const params: Record<string, string> = {}
-    if (searchQuery.trim()) {
-      params.q = searchQuery.trim()
-    }
-    if (category) {
-      params.category = category
-    }
+  const handleFilterChange = (filters: typeof activeFilters) => {
+    const params = new URLSearchParams()
+    const q = searchParams.get('q')
+    if (q) params.set('q', q)
+
+    if (filters.category) params.set('category', filters.category)
+    if (filters.color_group) params.set('color_group', filters.color_group)
+    if (filters.product_type) params.set('product_type', filters.product_type)
+    if (filters.price_min !== undefined) params.set('price_min', filters.price_min.toString())
+    if (filters.price_max !== undefined) params.set('price_max', filters.price_max.toString())
+
     setSearchParams(params)
     setPage(1)
   }
@@ -79,6 +91,8 @@ export default function ProductList() {
     setSearchParams({})
     setPage(1)
   }
+
+  const activeFilterCount = Object.values(activeFilters).filter((v) => v !== undefined).length
 
   const handleAddToCart = async (product: Product) => {
     try {
@@ -92,105 +106,120 @@ export default function ProductList() {
     <div className="bg-white">
       <div className="container mx-auto px-4 py-8">
         {/* Header & Search */}
-        <div className="mb-8">
-          <h1 className="mb-6 text-3xl font-bold text-gray-900">Productos</h1>
+        <div className="mb-6">
+          <h1 className="mb-4 text-3xl font-bold text-gray-900">Productos</h1>
 
-          <form onSubmit={handleSearch} className="mb-4 flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar productos..."
-                className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-            <button
-              type="submit"
-              className="rounded-lg bg-primary-600 px-6 py-2.5 font-semibold text-white hover:bg-primary-700"
-            >
-              Buscar
-            </button>
-          </form>
-
-          {/* Filtros por Categoría */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Filtrar por categoría:</span>
-            </div>
-            
-            {loadingCategories ? (
-              <div className="flex items-center gap-2">
-                <Loader className="h-4 w-4 animate-spin text-gray-400" />
-                <span className="text-sm text-gray-500">Cargando categorías...</span>
+          <div className="flex gap-2 sm:gap-3">
+            <form onSubmit={handleSearch} className="flex flex-1 gap-2 sm:gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                />
               </div>
-            ) : (
-              <>
-                <button
-                  onClick={() => handleCategoryChange('')}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                    !selectedCategory
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+              <button
+                type="submit"
+                className="hidden rounded-lg px-6 py-2.5 font-semibold text-white sm:block"
+                style={{ backgroundColor: '#6e348d' }}
+              >
+                Buscar
+              </button>
+            </form>
+
+            {/* Toggle filtros en móvil */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2.5 font-medium text-gray-700 hover:bg-gray-50 lg:hidden"
+            >
+              <SlidersHorizontal className="h-5 w-5" />
+              <span className="hidden sm:inline">Filtros</span>
+              {activeFilterCount > 0 && (
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                  style={{ backgroundColor: '#6e348d' }}
                 >
-                  Todas
-                </button>
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => handleCategoryChange(category)}
-                    className="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-                    style={{
-                      backgroundColor: selectedCategory === category ? "#6e348d" : "#f3f4f6",
-                      color: selectedCategory === category ? "white" : "#374151"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedCategory !== category) {
-                        e.currentTarget.style.backgroundColor = "#ffb320"
-                        e.currentTarget.style.color = "white"
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedCategory !== category) {
-                        e.currentTarget.style.backgroundColor = "#f3f4f6"
-                        e.currentTarget.style.color = "#374151"
-                      }
-                    }}
-                  >
-                    {category}
-                  </button>
-                ))}
-                {(selectedCategory || searchQuery) && (
-                  <button
-                    onClick={clearFilters}
-                    className="ml-auto flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    <X className="h-4 w-4" />
-                    Limpiar filtros
-                  </button>
-                )}
-              </>
-            )}
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
         {/* Results Info */}
-        {(searchParams.get('q') || searchParams.get('category')) && (
-          <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm text-gray-600">
-              {searchParams.get('q') && (
-                <>Resultados de búsqueda para: <span className="font-semibold">{searchParams.get('q')}</span></>
-              )}
-              {searchParams.get('q') && searchParams.get('category') && ' • '}
-              {searchParams.get('category') && (
-                <>Categoría: <span className="font-semibold">{searchParams.get('category')}</span></>
-              )}
-            </p>
+        {(searchParams.get('q') || activeFilterCount > 0) && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 sm:px-4 sm:py-3">
+            <span className="text-xs text-gray-600 sm:text-sm">Filtros:</span>
+            {searchParams.get('q') && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800">
+                {searchParams.get('q')}
+              </span>
+            )}
+            {activeFilters.category && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800">
+                {activeFilters.category}
+              </span>
+            )}
+            {activeFilters.color_group && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800">
+                {activeFilters.color_group}
+              </span>
+            )}
+            {activeFilters.product_type && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800">
+                {activeFilters.product_type}
+              </span>
+            )}
+            {(activeFilters.price_min !== undefined || activeFilters.price_max !== undefined) && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800">
+                ${activeFilters.price_min ?? 0} - ${activeFilters.price_max ?? '...'}
+              </span>
+            )}
+            <button
+              onClick={clearFilters}
+              className="ml-auto flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 sm:text-sm"
+            >
+              <X className="h-3 w-3 sm:h-4 sm:w-4" />
+              Limpiar
+            </button>
           </div>
         )}
+
+        {/* Mobile filter overlay */}
+        {showFilters && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowFilters(false)} />
+            <div className="absolute bottom-0 left-0 right-0 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white p-4">
+              <FilterSidebar
+                filterOptions={filterOptions}
+                isLoading={loadingFilters}
+                activeFilters={activeFilters}
+                onFilterChange={handleFilterChange}
+                onClearFilters={clearFilters}
+                onClose={() => setShowFilters(false)}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main content with sidebar */}
+        <div className="flex gap-6">
+          {/* Filtros Sidebar - Solo desktop */}
+          <aside className="hidden w-64 flex-shrink-0 lg:block">
+            <FilterSidebar
+              filterOptions={filterOptions}
+              isLoading={loadingFilters}
+              activeFilters={activeFilters}
+              onFilterChange={handleFilterChange}
+              onClearFilters={clearFilters}
+            />
+          </aside>
+
+          {/* Products area */}
+          <div className="min-w-0 flex-1">
 
         {/* Loading */}
         {loading && (
@@ -305,9 +334,11 @@ export default function ProductList() {
         {!loading && !error && products.length === 0 && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
             <p className="text-lg font-medium text-gray-900">No se encontraron productos</p>
-            <p className="mt-2 text-gray-600">Intenta con otros términos de búsqueda</p>
+            <p className="mt-2 text-gray-600">Intenta con otros términos de búsqueda o ajusta los filtros</p>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
   )

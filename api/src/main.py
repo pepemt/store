@@ -25,6 +25,8 @@ from .routes import (
     recommendations_router,
     metadata_router,
     transcribe_router,
+    landing_router,
+    warmup_landing_cache,
 )
 
 from database.lib import Database
@@ -53,6 +55,7 @@ app.include_router(order_router,    prefix="/api/v1/orders",   tags=["orders"])
 app.include_router(recommendations_router, prefix="/api/v1", tags=["recommendations"])
 app.include_router(metadata_router, prefix="/api/v1/metadata", tags=["metadata"])
 app.include_router(transcribe_router, prefix="", tags=["stt"])
+app.include_router(landing_router, prefix="/api/v1/landing", tags=["landing"])
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -149,6 +152,12 @@ async def startup_event():
             await preload_model()
         except Exception as e:
             logger.warning(f"  Error al precargar modelo ML (se cargará cuando se necesite): {e}")
+
+        # Precalentar caché de landing (bestsellers, reviews)
+        try:
+            await warmup_landing_cache()
+        except Exception as e:
+            logger.warning(f"  Error al precalentar caché de landing (no crítico): {e}")
 
         # Log de rutas (útil para confirmar que /api/v1/cart/add existe)
         try:
