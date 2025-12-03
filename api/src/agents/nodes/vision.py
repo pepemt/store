@@ -22,7 +22,8 @@ from oci.generative_ai_inference.models import (
     ImageUrl,
 )
 
-from models import AgentState
+from models import AgentState, StepType, StepStatus
+from progress_utils import emit_progress, track_step
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,16 @@ async def vision_node(state: AgentState) -> dict:
     if not image_data:
         logger.warning("No image data found in state")
         return {"image_description": None, "has_image": False}
+
+    # Emitir evento de inicio de análisis de imagen
+    await emit_progress(
+        state=state,
+        step_type=StepType.VISION,
+        status=StepStatus.STARTED,
+        title="Analizando imagen",
+        description="Procesando imagen con Llama 3.2 Vision...",
+        details={"mime_type": image_mime_type, "has_text": bool(user_message)}
+    )
 
     # Log image size for debugging
     image_size_kb = len(image_data) * 3 // 4 // 1024
@@ -195,6 +206,17 @@ Consider their context when describing the product."""
         logger.info(f"Vision analysis complete in {elapsed:.2f}s")
         logger.info(f"Description preview: {image_description[:200]}...")
 
+        # Emitir evento de finalización exitosa
+        await emit_progress(
+            state=state,
+            step_type=StepType.VISION,
+            status=StepStatus.COMPLETED,
+            title="Imagen analizada",
+            description=f"Identificado: {image_description[:80]}...",
+            details={"description_length": len(image_description)},
+            duration_ms=int(elapsed * 1000)
+        )
+
         return {
             "image_description": image_description,
             "has_image": True
@@ -203,6 +225,17 @@ Consider their context when describing the product."""
     except Exception as e:
         elapsed = time.time() - start_time
         logger.error(f"Vision node error after {elapsed:.2f}s: {e}", exc_info=True)
+
+        # Emitir evento de error
+        await emit_progress(
+            state=state,
+            step_type=StepType.VISION,
+            status=StepStatus.ERROR,
+            title="Error en imagen",
+            description="No se pudo analizar la imagen",
+            duration_ms=int(elapsed * 1000)
+        )
+
         return {
             "image_description": "[No pude analizar la imagen. Por favor, intenta de nuevo o describe lo que buscas.]",
             "has_image": True

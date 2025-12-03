@@ -2,12 +2,14 @@
 import logging
 import sys
 import os
+import time
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from models import AgentState
+from models import AgentState, StepType, StepStatus
 from llm_config import llm
+from progress_utils import emit_progress
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +17,19 @@ logger = logging.getLogger(__name__)
 
 async def chat_node(state: AgentState) -> dict:
     """Handle general chat with e-commerce context"""
+    start_time = time.time()
     messages = state["messages"]
     user_message = messages[-1].content if messages else ""
+
+    # Emitir evento de inicio de chat
+    await emit_progress(
+        state=state,
+        step_type=StepType.CHAT,
+        status=StepStatus.STARTED,
+        title="Generando respuesta",
+        description="Preparando una respuesta personalizada...",
+        details={"has_history": len(messages) > 1}
+    )
 
     # Get image description from current state or conversation context
     image_description = state.get("image_description")
@@ -80,7 +93,18 @@ Responde al usuario basándote en la imagen que envió."""
 
     # Use ainvoke for async consistency
     response = await llm.ainvoke(conversation)
+    elapsed = time.time() - start_time
     logger.info(f"Chat response: {response.content[:100]}")
+
+    # Emitir evento de chat completado
+    await emit_progress(
+        state=state,
+        step_type=StepType.CHAT,
+        status=StepStatus.COMPLETED,
+        title="Respuesta lista",
+        description="Conversación procesada exitosamente",
+        duration_ms=int(elapsed * 1000)
+    )
 
     return {
         "messages": [{"role": "assistant", "content": response.content}],

@@ -7,7 +7,7 @@ import json
 import sys
 import os
 import base64
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable, Awaitable
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel
 
@@ -22,7 +22,7 @@ if agents_path not in sys.path:
 
 from graph import build_graph
 from chat_session import get_session_manager
-from models import AgentState
+from models import AgentState, ThinkingStep
 from metadata_cache import get_metadata_cache
 
 logger = logging.getLogger(__name__)
@@ -135,6 +135,36 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def create_progress_callback(
+    session_id: str,
+    conversation_id: str,
+    connection_manager: ConnectionManager
+) -> Callable[[ThinkingStep], Awaitable[None]]:
+    """
+    Crea un callback para enviar eventos de progreso por WebSocket.
+
+    Args:
+        session_id: ID de la sesión WebSocket
+        conversation_id: ID de la conversación
+        connection_manager: Manager de conexiones WebSocket
+
+    Returns:
+        Función async que recibe un ThinkingStep y lo envía por WebSocket
+    """
+    async def progress_callback(step: ThinkingStep) -> None:
+        """Envía un evento de progreso por WebSocket."""
+        try:
+            await connection_manager.send_message(session_id, {
+                "type": "thinking_step",
+                "conversation_id": conversation_id,
+                "step": step.to_dict()
+            })
+        except Exception as e:
+            logger.warning(f"Error sending progress event: {e}")
+
+    return progress_callback
+
+
 @router.websocket("/ws/chat")
 async def websocket_chat_endpoint(
     websocket: WebSocket,
@@ -244,6 +274,13 @@ async def websocket_chat_endpoint(
                         "content": msg["content"]
                     })
 
+                # Create progress callback for this conversation
+                progress_callback = create_progress_callback(
+                    session_id=session_id,
+                    conversation_id=msg_conversation_id,
+                    connection_manager=manager
+                )
+
                 # Create initial state with image support
                 initial_state: AgentState = {
                     "messages": agent_messages,
@@ -260,6 +297,8 @@ async def websocket_chat_endpoint(
                     "image_mime_type": image_mime_type if image_data else None,
                     "image_description": None,
                     "has_image": image_data is not None,
+                    # Progress callback for streaming events
+                    "progress_callback": progress_callback,
                 }
 
                 # Run agent graph with ainvoke (async)

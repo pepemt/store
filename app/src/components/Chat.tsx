@@ -13,16 +13,209 @@ import {
   Eye,
   Package,
   ImageIcon,
+  Scan,
+  Brain,
+  Search,
+  Sparkles,
+  MessageSquare,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Zap,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useChat } from "../context/ChatContext";
+import { useChat, ThinkingStep, StepType } from "../context/ChatContext";
 import { useCart } from "../context/CartContext";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Markdown } from "./ui/markdown";
 import ConversationList from "./ConversationList";
 import Avatar from "./Avatar";
-import MicButton from "./ui/mic-button"; // <-- NUEVO
+import MicButton from "./ui/mic-button";
+
+// Configuración de iconos y colores para cada tipo de paso
+const STEP_CONFIG: Record<StepType, { icon: React.ElementType; color: string; label: string }> = {
+  routing: { icon: Zap, color: "text-yellow-500", label: "Enrutando" },
+  vision: { icon: Scan, color: "text-purple-500", label: "Analizando imagen" },
+  classifier: { icon: Brain, color: "text-blue-500", label: "Clasificando" },
+  chat: { icon: MessageSquare, color: "text-green-500", label: "Generando respuesta" },
+  search_refine: { icon: Sparkles, color: "text-amber-500", label: "Refinando búsqueda" },
+  search_v1: { icon: Search, color: "text-cyan-500", label: "Búsqueda V1" },
+  search_v2: { icon: Search, color: "text-teal-500", label: "Búsqueda V2" },
+  search_v3: { icon: Search, color: "text-emerald-500", label: "Búsqueda V3" },
+  search_parallel: { icon: Zap, color: "text-indigo-500", label: "Búsqueda paralela" },
+  discriminator: { icon: Star, color: "text-orange-500", label: "Seleccionando mejores" },
+  response_gen: { icon: MessageSquare, color: "text-pink-500", label: "Preparando respuesta" },
+  review_search: { icon: Star, color: "text-rose-500", label: "Buscando por opiniones" },
+};
+
+// Componente para mostrar un paso individual
+const ThinkingStepItem: React.FC<{ step: ThinkingStep; isLast: boolean }> = ({ step, isLast }) => {
+  const config = STEP_CONFIG[step.step_type] || { icon: Loader2, color: "text-gray-500", label: step.step_type };
+  const Icon = config.icon;
+
+  const getStatusIcon = () => {
+    switch (step.status) {
+      case 'completed':
+        return <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />;
+      case 'error':
+        return <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />;
+      default:
+        return <Loader2 className="h-3 w-3 animate-spin text-gray-400 flex-shrink-0" />;
+    }
+  };
+
+  return (
+    <div className={`flex items-start gap-2 py-1.5 ${step.status === 'started' && isLast ? 'animate-pulse' : ''}`}>
+      <div className={`flex-shrink-0 p-1 rounded ${step.status === 'started' ? 'bg-gray-100' : 'bg-transparent'}`}>
+        <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+      </div>
+      <div className="flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`text-xs font-medium ${step.status === 'completed' ? 'text-gray-500' : 'text-gray-700'}`}>
+            {step.title}
+          </span>
+          {getStatusIcon()}
+          {step.duration_ms && (
+            <span className="text-[10px] text-gray-400">
+              {(step.duration_ms / 1000).toFixed(1)}s
+            </span>
+          )}
+        </div>
+        <p className={`text-[11px] break-words ${step.status === 'completed' ? 'text-gray-400' : 'text-gray-500'}`}>
+          {step.description}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// Helper para agrupar pasos paralelos
+const groupParallelSteps = (steps: ThinkingStep[]): (ThinkingStep | ThinkingStep[])[] => {
+  const groupedSteps: (ThinkingStep | ThinkingStep[])[] = [];
+  let currentParallelGroup: ThinkingStep[] = [];
+  let currentGroupId: string | null = null;
+
+  steps.forEach((step) => {
+    if (step.is_parallel && step.parallel_group) {
+      if (currentGroupId === step.parallel_group) {
+        currentParallelGroup.push(step);
+      } else {
+        if (currentParallelGroup.length > 0) {
+          groupedSteps.push([...currentParallelGroup]);
+        }
+        currentParallelGroup = [step];
+        currentGroupId = step.parallel_group;
+      }
+    } else {
+      if (currentParallelGroup.length > 0) {
+        groupedSteps.push([...currentParallelGroup]);
+        currentParallelGroup = [];
+        currentGroupId = null;
+      }
+      groupedSteps.push(step);
+    }
+  });
+
+  if (currentParallelGroup.length > 0) {
+    groupedSteps.push(currentParallelGroup);
+  }
+
+  return groupedSteps;
+};
+
+// Componente para renderizar los pasos agrupados
+const ThinkingStepsContent: React.FC<{ steps: ThinkingStep[]; isLive?: boolean }> = ({ steps, isLive = false }) => {
+  const groupedSteps = groupParallelSteps(steps);
+
+  return (
+    <div className="space-y-0.5">
+      {groupedSteps.map((item, idx) => {
+        if (Array.isArray(item)) {
+          // Grupo paralelo
+          return (
+            <div key={`parallel-${idx}`} className="pl-2 border-l-2 border-indigo-200 ml-1">
+              <div className="flex items-center gap-1 mb-1">
+                <Zap className="h-3 w-3 text-indigo-400" />
+                <span className="text-[10px] text-indigo-500 font-medium">En paralelo</span>
+              </div>
+              {item.map((step, stepIdx) => (
+                <ThinkingStepItem
+                  key={`${step.step_type}-${stepIdx}`}
+                  step={step}
+                  isLast={isLive && idx === groupedSteps.length - 1 && stepIdx === item.length - 1}
+                />
+              ))}
+            </div>
+          );
+        }
+        return (
+          <ThinkingStepItem
+            key={`${item.step_type}-${idx}`}
+            step={item}
+            isLast={isLive && idx === groupedSteps.length - 1}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+// Componente principal de pasos de pensamiento (en vivo, mientras procesa)
+const ThinkingStepsDisplay: React.FC<{ steps: ThinkingStep[] }> = ({ steps }) => {
+  if (steps.length === 0) return null;
+
+  return (
+    <div className="mb-4 flex justify-start">
+      <div className="max-w-[85%] rounded-lg border bg-white px-3 py-2 shadow-sm">
+        <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-gray-100">
+          <Brain className="h-4 w-4 text-purple-600 animate-pulse" />
+          <span className="text-xs font-semibold text-purple-700">Eyra está pensando...</span>
+        </div>
+        <ThinkingStepsContent steps={steps} isLive={true} />
+      </div>
+    </div>
+  );
+};
+
+// Componente colapsable para mostrar historial de pensamiento en mensajes pasados
+const ThinkingStepsHistory: React.FC<{ steps: ThinkingStep[] }> = ({ steps }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!steps || steps.length === 0) return null;
+
+  // Calcular tiempo total
+  const totalTime = steps.reduce((acc, step) => acc + (step.duration_ms || 0), 0);
+
+  return (
+    <div className="mt-2 mb-1">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        <Brain className="h-3 w-3" />
+        <span>
+          {isExpanded ? 'Ocultar' : 'Ver'} proceso de pensamiento
+          {totalTime > 0 && ` (${(totalTime / 1000).toFixed(1)}s)`}
+        </span>
+        <svg
+          className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isExpanded && (
+        <div className="mt-2 pl-2 border-l-2 border-purple-100">
+          <ThinkingStepsContent steps={steps} isLive={false} />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Chat() {
   const location = useLocation();
@@ -31,6 +224,7 @@ export default function Chat() {
     isOpen,
     messages,
     isTyping,
+    thinkingSteps,
     sendMessage,
     clearMessages,
     toggleChat,
@@ -64,7 +258,7 @@ export default function Chat() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isTyping]);
+  }, [messages, isTyping, thinkingSteps]);
 
   useEffect(() => {
     if (location.pathname === "/chat" && isOpen) {
@@ -133,8 +327,7 @@ export default function Chat() {
   };
 
   const handleViewProduct = (productId: number) => {
-    navigate(`/product/${productId}`);
-    closeChat();
+    window.open(`/product/${productId}`, '_blank');
   };
 
   const handleAddToCart = async (product: any) => {
@@ -454,9 +647,15 @@ export default function Chat() {
                           )}
                           {message.text &&
                             (message.sender === "assistant" ? (
-                              <Markdown className="text-gray-900">
-                                {message.text}
-                              </Markdown>
+                              <>
+                                <Markdown className="text-gray-900">
+                                  {message.text}
+                                </Markdown>
+                                {/* Mostrar historial de pensamiento colapsable */}
+                                {message.thinkingSteps && message.thinkingSteps.length > 0 && (
+                                  <ThinkingStepsHistory steps={message.thinkingSteps} />
+                                )}
+                              </>
                             ) : (
                               <p className="whitespace-pre-wrap text-sm">
                                 {message.text}
@@ -672,15 +871,19 @@ export default function Chat() {
                   ))}
 
                   {isTyping && (
-                    <div className="mb-4 flex justify-start">
-                      <div className="max-w-[80%] rounded-lg border bg-white px-4 py-3">
-                        <div className="flex gap-1">
-                          <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span>
-                          <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span>
-                          <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span>
+                    thinkingSteps.length > 0 ? (
+                      <ThinkingStepsDisplay steps={thinkingSteps} />
+                    ) : (
+                      <div className="mb-4 flex justify-start">
+                        <div className="max-w-[80%] rounded-lg border bg-white px-4 py-3">
+                          <div className="flex gap-1">
+                            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span>
+                            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span>
+                            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )
                   )}
                 </>
               )}

@@ -2,9 +2,68 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Optional, List, Dict, Any, Literal
+from typing import Annotated, Optional, List, Dict, Any, Literal, Callable, Awaitable
 from typing_extensions import TypedDict, NotRequired
 from langgraph.graph.message import add_messages
+from dataclasses import dataclass, field
+from enum import Enum
+
+
+# -----------------------------
+# Eventos de progreso (Thinking Steps)
+# -----------------------------
+
+class StepStatus(str, Enum):
+    """Estado de un paso de procesamiento"""
+    STARTED = "started"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+class StepType(str, Enum):
+    """Tipos de pasos en el procesamiento"""
+    ROUTING = "routing"           # Decisión de ruta (imagen/no imagen)
+    VISION = "vision"             # Análisis de imagen
+    CLASSIFIER = "classifier"     # Clasificación de intención
+    CHAT = "chat"                 # Generación de respuesta conversacional
+    SEARCH_REFINE = "search_refine"         # Refinamiento de query con LLM
+    SEARCH_V1 = "search_v1"       # Búsqueda V1 (term-by-term)
+    SEARCH_V2 = "search_v2"       # Búsqueda V2 (full query)
+    SEARCH_V3 = "search_v3"       # Búsqueda V3 (distinctive)
+    SEARCH_PARALLEL = "search_parallel"     # Búsquedas en paralelo
+    DISCRIMINATOR = "discriminator"         # LLM discriminador
+    RESPONSE_GEN = "response_gen"           # Generación de respuesta final
+    REVIEW_SEARCH = "review_search"         # Búsqueda por reviews
+
+
+@dataclass
+class ThinkingStep:
+    """Representa un paso en el proceso de pensamiento del agente"""
+    step_type: StepType
+    status: StepStatus
+    title: str                              # Título corto para UI
+    description: str                        # Descripción detallada
+    details: Optional[Dict[str, Any]] = None  # Datos adicionales (ej: términos de búsqueda)
+    is_parallel: bool = False               # Si es parte de operaciones paralelas
+    parallel_group: Optional[str] = None    # ID del grupo paralelo (ej: "search_hybrid")
+    duration_ms: Optional[int] = None       # Duración en ms (para completed)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convierte a diccionario para enviar por WebSocket"""
+        return {
+            "step_type": self.step_type.value,
+            "status": self.status.value,
+            "title": self.title,
+            "description": self.description,
+            "details": self.details,
+            "is_parallel": self.is_parallel,
+            "parallel_group": self.parallel_group,
+            "duration_ms": self.duration_ms,
+        }
+
+
+# Tipo para callback de eventos de progreso
+ProgressCallback = Callable[[ThinkingStep], Awaitable[None]]
 
 
 # -----------------------------
@@ -112,3 +171,6 @@ class AgentState(TypedDict):
 
     # Cualquier otro dato de contexto (flags, temporales, etc.)
     conversation_context: NotRequired[Dict[str, Any]]
+
+    # Callback para eventos de progreso (thinking steps)
+    progress_callback: NotRequired[Optional[ProgressCallback]]

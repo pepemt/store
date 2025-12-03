@@ -8,6 +8,35 @@ interface ChatMessage {
   products?: any[] | null
   intent?: string | null
   image?: string | null  // Base64 thumbnail for display in chat history
+  thinkingSteps?: ThinkingStep[] | null  // Pasos de pensamiento que llevaron a esta respuesta
+}
+
+// Tipos para eventos de progreso (Thinking Steps)
+export type StepStatus = 'started' | 'completed' | 'error'
+
+export type StepType =
+  | 'routing'
+  | 'vision'
+  | 'classifier'
+  | 'chat'
+  | 'search_refine'
+  | 'search_v1'
+  | 'search_v2'
+  | 'search_v3'
+  | 'search_parallel'
+  | 'discriminator'
+  | 'response_gen'
+  | 'review_search'
+
+export interface ThinkingStep {
+  step_type: StepType
+  status: StepStatus
+  title: string
+  description: string
+  details?: Record<string, any> | null
+  is_parallel?: boolean
+  parallel_group?: string | null
+  duration_ms?: number | null
 }
 
 // Image validation constants
@@ -84,6 +113,7 @@ interface ChatContextType {
   sessionId: string | null
   conversations: Conversation[]
   activeConversationId: string | null
+  thinkingSteps: ThinkingStep[]  // Pasos de pensamiento actuales
   addMessage: (message: Partial<ChatMessage>) => ChatMessage
   sendMessage: (text: string, image?: File | null) => Promise<void>
   clearMessages: () => void
@@ -141,6 +171,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [typingConversationId, setTypingConversationId] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  // Estado para pasos de pensamiento (thinking steps)
+  const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([])
+  // Ref para acceso síncrono a los thinking steps (evita problemas de closure)
+  const thinkingStepsRef = useRef<ThinkingStep[]>([])
 
   const messages = conversations.find(c => c.id === activeConversationId)?.messages || []
 
@@ -157,6 +191,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId
   }, [activeConversationId])
+
+  // Sync thinkingSteps ref with state
+  useEffect(() => {
+    thinkingStepsRef.current = thinkingSteps
+  }, [thinkingSteps])
 
   useEffect(() => {
     try {
@@ -192,7 +231,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       timestamp: new Date().toISOString(),
       products: message.products || null,
       intent: message.intent || null,
-      image: message.image || null  // Include image thumbnail for display
+      image: message.image || null,  // Include image thumbnail for display
+      thinkingSteps: message.thinkingSteps || null  // Include thinking steps for assistant messages
     }
 
     let newConvId: string | null = null
@@ -302,6 +342,39 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
               // Marcar que ESA conversación específica está esperando respuesta
               if (data.conversation_id) {
                 setTypingConversationId(data.conversation_id)
+                // Limpiar pasos previos al iniciar nueva conversación
+                setThinkingSteps([])
+                thinkingStepsRef.current = []
+              }
+              break
+
+            case 'thinking_step':
+              // Recibir un paso de pensamiento del agente
+              if (data.step && data.conversation_id === activeConversationIdRef.current) {
+                const step = data.step as ThinkingStep
+                setThinkingSteps(prev => {
+                  let updated: ThinkingStep[]
+                  // Si es un paso completado, actualizamos el existente
+                  if (step.status === 'completed' || step.status === 'error') {
+                    const existingIndex = prev.findIndex(
+                      s => s.step_type === step.step_type &&
+                           s.parallel_group === step.parallel_group &&
+                           s.status === 'started'
+                    )
+                    if (existingIndex >= 0) {
+                      updated = [...prev]
+                      updated[existingIndex] = step
+                    } else {
+                      updated = [...prev, step]
+                    }
+                  } else {
+                    // Si es un paso nuevo, lo agregamos
+                    updated = [...prev, step]
+                  }
+                  // Mantener la ref sincronizada inmediatamente
+                  thinkingStepsRef.current = updated
+                  return updated
+                })
               }
               break
 
@@ -310,13 +383,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
               setTypingConversationId(prev =>
                 prev === data.conversation_id ? null : prev
               )
-              // Usar conversation_id del backend para colocar mensaje en conversación correcta
+              // Capturar los thinking steps actuales de la ref (acceso síncrono)
+              const currentSteps = [...thinkingStepsRef.current]
+              // Agregar mensaje con los pasos de pensamiento
               addMessage({
                 text: data.message,
                 sender: 'assistant',
                 products: data.products || null,
-                intent: data.intent || null
-              }, data.conversation_id)  // Backend devuelve el conversation_id original
+                intent: data.intent || null,
+                thinkingSteps: currentSteps.length > 0 ? currentSteps : null
+              }, data.conversation_id)
+              // Limpiar los pasos después de guardarlos
+              setThinkingSteps([])
+              thinkingStepsRef.current = []
               if (data.session_id) {
                 setSessionId(data.session_id)
               }
@@ -574,6 +653,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       sessionId,
       conversations,
       activeConversationId,
+      thinkingSteps,
       addMessage,
       sendMessage,
       clearMessages,

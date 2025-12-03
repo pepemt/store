@@ -2,21 +2,34 @@
 import logging
 import sys
 import os
+import time
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from models import AgentState
+from models import AgentState, StepType, StepStatus
 from llm_config import llm
 from metadata_cache import get_metadata_cache
+from progress_utils import emit_progress
 
 logger = logging.getLogger(__name__)
 
 
 async def classifier_node(state: AgentState) -> dict:
     """Classify user intent for routing"""
+    start_time = time.time()
     messages = state["messages"]
     user_message = messages[-1].content if messages else ""
+
+    # Emitir evento de inicio de clasificación
+    await emit_progress(
+        state=state,
+        step_type=StepType.CLASSIFIER,
+        status=StepStatus.STARTED,
+        title="Clasificando intención",
+        description="Analizando qué tipo de ayuda necesitas...",
+        details={"message_preview": user_message[:50] if user_message else ""}
+    )
 
     # Build conversation history for context (last 6 messages max)
     history_context = ""
@@ -110,5 +123,26 @@ Category:"""
     if intent not in valid_intents:
         intent = "chat"
 
+    elapsed = time.time() - start_time
     logger.info(f"Classified intent: {intent}")
+
+    # Mapeo de intents a descripciones amigables
+    intent_descriptions = {
+        "product_search": "Buscando productos similares",
+        "product_recommendations": "Preparando recomendaciones",
+        "chat": "Respondiendo tu consulta",
+        "semantic_review_search": "Buscando por opiniones de usuarios"
+    }
+
+    # Emitir evento de clasificación completada
+    await emit_progress(
+        state=state,
+        step_type=StepType.CLASSIFIER,
+        status=StepStatus.COMPLETED,
+        title="Intención identificada",
+        description=intent_descriptions.get(intent, "Procesando solicitud"),
+        details={"intent": intent},
+        duration_ms=int(elapsed * 1000)
+    )
+
     return {"intent": intent}

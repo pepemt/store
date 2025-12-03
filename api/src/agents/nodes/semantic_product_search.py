@@ -6,10 +6,11 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from models import AgentState
+from models import AgentState, StepType, StepStatus
 from llm_config import llm
 from tools import semantic_product_search
 from metadata_cache import get_metadata_cache
+from progress_utils import emit_progress, emit_parallel_start, emit_parallel_end
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,16 @@ Output: shirt stars blue
 
 Now extract search terms (ALL IN ENGLISH, plain text only):"""
 
+        # Emitir evento de refinamiento de query
+        await emit_progress(
+            state=state,
+            step_type=StepType.SEARCH_REFINE,
+            status=StepStatus.STARTED,
+            title="Refinando búsqueda",
+            description="Extrayendo términos clave con IA...",
+            details={"original_query": user_message[:50]}
+        )
+
         logger.info("⏱️  Step 2: Calling LLM to refine query...")
         llm_start = time.time()
         try:
@@ -139,6 +150,17 @@ Now extract search terms (ALL IN ENGLISH, plain text only):"""
             logger.info(f"✅ Query refined successfully in {llm_time:.2f}s")
             logger.info(f"   Original query: {user_message}")
             logger.info(f"   Refined search terms: {refined_query}")
+
+            # Emitir evento de refinamiento completado
+            await emit_progress(
+                state=state,
+                step_type=StepType.SEARCH_REFINE,
+                status=StepStatus.COMPLETED,
+                title="Query refinada",
+                description=f"Términos: {refined_query[:60]}...",
+                details={"refined_query": refined_query},
+                duration_ms=int(llm_time * 1000)
+            )
         except asyncio.TimeoutError:
             llm_time = time.time() - llm_start
             logger.error(f"❌ LLM refinement timeout after {llm_time:.2f}s")
@@ -153,6 +175,15 @@ Now extract search terms (ALL IN ENGLISH, plain text only):"""
             logger.info(f"   Fallback: using original query '{refined_query}'")
 
         # Step 3: Execute HYBRID search (V1 + V2 + V3 in parallel)
+        # Emitir evento de inicio de búsqueda paralela
+        await emit_parallel_start(
+            state=state,
+            parallel_group="search_hybrid",
+            title="Búsqueda híbrida",
+            description="Ejecutando 3 estrategias de búsqueda en paralelo...",
+            steps=["V1: Término por término", "V2: Query completa", "V3: Términos distintivos"]
+        )
+
         logger.info(f"⏱️  Step 3: Calling HYBRID semantic_product_search (V1+V2+V3)...")
         search_start = time.time()
         search_results = await semantic_product_search(query=refined_query, limit=10)
@@ -171,12 +202,31 @@ Now extract search terms (ALL IN ENGLISH, plain text only):"""
         if distinctive_terms:
             logger.info(f"   Distinctive terms: {distinctive_terms}")
 
+        # Emitir evento de búsqueda paralela completada
+        await emit_parallel_end(
+            state=state,
+            parallel_group="search_hybrid",
+            title="Búsqueda completada",
+            description=f"V1: {len(v1_products)}, V2: {len(v2_products)}, V3: {len(v3_products)} productos",
+            duration_ms=int(search_time * 1000)
+        )
+
         # Combine results - use all three sets
         all_products = v3_products + v1_products + v2_products  # V3 first for priority
 
         if all_products:
             # Step 4: LLM DISCRIMINATOR selects the best products
             logger.info("⏱️  Step 4: LLM DISCRIMINATOR selecting best products...")
+
+            # Emitir evento de discriminador
+            await emit_progress(
+                state=state,
+                step_type=StepType.DISCRIMINATOR,
+                status=StepStatus.STARTED,
+                title="Seleccionando mejores",
+                description="Analizando relevancia de productos encontrados...",
+                details={"total_candidates": len(all_products)}
+            )
 
             def format_product_list(products, method_name):
                 if not products:
@@ -274,6 +324,16 @@ Select the best products now:"""
 
                 logger.info(f"   Final selection: {len(products)} products")
 
+                # Emitir evento de discriminador completado
+                await emit_progress(
+                    state=state,
+                    step_type=StepType.DISCRIMINATOR,
+                    status=StepStatus.COMPLETED,
+                    title="Productos seleccionados",
+                    description=f"Top {len(products)} productos más relevantes",
+                    details={"selected_count": len(products)}
+                )
+
             except Exception as selector_error:
                 logger.warning(f"LLM discriminator failed: {selector_error}, using fallback")
                 # Fallback: V3 first (distinctive), then interleave V1 and V2
@@ -302,6 +362,16 @@ Select the best products now:"""
                         seen_ids.add(v2_products[i]['id'])
 
             # Step 5: Generate response for user
+            # Emitir evento de generación de respuesta
+            await emit_progress(
+                state=state,
+                step_type=StepType.RESPONSE_GEN,
+                status=StepStatus.STARTED,
+                title="Preparando respuesta",
+                description="Generando recomendaciones personalizadas...",
+                details={"products_count": len(products)}
+            )
+
             products_text = "\n".join([
                 f"- {p['name']} (${p['price']:.2f}) - {p['category']} - {p['color']}"
                 for p in products
@@ -328,6 +398,16 @@ Mention key details like name, price, category, and color."""
 
             response = await llm.ainvoke([{"role": "user", "content": response_prompt}])
             response_content = response.content
+
+            # Emitir evento de respuesta completada
+            await emit_progress(
+                state=state,
+                step_type=StepType.RESPONSE_GEN,
+                status=StepStatus.COMPLETED,
+                title="Respuesta lista",
+                description=f"Encontrados {len(products)} productos relevantes",
+                details={"response_length": len(response_content)}
+            )
         else:
             logger.warning("All search methods returned no products")
             products = []
