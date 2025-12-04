@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle, Package, ArrowRight } from 'lucide-react'
 import { useCart } from '../context/CartContext'
@@ -7,15 +7,20 @@ import { checkoutService, SessionStatusResponse } from '../services/checkoutServ
 export default function CheckoutSuccess() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { refresh } = useCart()
+  const { clear, hasItems } = useCart()
 
   const [loading, setLoading] = useState(true)
   const [sessionStatus, setSessionStatus] = useState<SessionStatusResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const hasVerified = useRef(false)
 
   const sessionId = searchParams.get('session_id')
 
   useEffect(() => {
+    // Evitar múltiples verificaciones
+    if (hasVerified.current) return
+    hasVerified.current = true
+
     const verifyPayment = async () => {
       if (!sessionId) {
         setError('No se encontró información del pago')
@@ -27,8 +32,16 @@ export default function CheckoutSuccess() {
         const status = await checkoutService.getSessionStatus(sessionId)
         setSessionStatus(status)
 
-        // Refrescar el carrito (debería estar vacío ahora)
-        await refresh()
+        // Si el pago fue exitoso, limpiar el carrito desde el frontend
+        // Esto es un fallback por si el webhook no procesó aún
+        if (status.payment_status === 'paid' && hasItems) {
+          try {
+            await clear()
+          } catch (clearErr) {
+            // Ignorar error de limpieza, el webhook lo hará
+            console.warn('No se pudo limpiar el carrito:', clearErr)
+          }
+        }
       } catch (err) {
         console.error('Error verificando pago:', err)
         setError('Error al verificar el estado del pago')
@@ -38,7 +51,7 @@ export default function CheckoutSuccess() {
     }
 
     verifyPayment()
-  }, [sessionId, refresh])
+  }, [sessionId, clear, hasItems])
 
   if (loading) {
     return (

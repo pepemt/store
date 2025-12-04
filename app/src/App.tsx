@@ -56,8 +56,22 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/checkout/success" element={<CheckoutSuccess />} />
-                  <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+                  <Route
+                    path="/checkout/success"
+                    element={
+                      <ProtectedRoute>
+                        <CheckoutSuccess />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/checkout/cancel"
+                    element={
+                      <ProtectedRoute>
+                        <CheckoutCancel />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="/orders"
                     element={
