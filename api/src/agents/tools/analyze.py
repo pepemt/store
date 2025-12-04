@@ -409,7 +409,7 @@ Return your analysis as structured JSON with relevant fields for the context."""
             # Return fallback with search_queries to prevent cascade failure
             return json.dumps({
                 "error": "Empty response from vision model",
-                "search_queries": ["clothing fashion style"],
+                "search_queries": ["women dress formal"],  # More specific fallback
                 "type": "unknown",
                 "colors": [],
                 "style": "casual",
@@ -421,7 +421,7 @@ Return your analysis as structured JSON with relevant fields for the context."""
             # Return fallback with search_queries to prevent cascade failure
             return json.dumps({
                 "error": str(e),
-                "search_queries": ["clothing fashion"],
+                "search_queries": ["women dress"],  # More specific fallback
                 "type": "unknown",
                 "colors": [],
                 "style": "casual",
@@ -463,11 +463,13 @@ Return your analysis as structured JSON with relevant fields for the context."""
             logger.info(f"Extracted {len(extracted_result.get('current_items', []))} items from text")
             return extracted_result
 
-        # Return response as text description with FALLBACK search_queries
+        # Try to extract useful terms from the text response
+        extracted_queries = self._extract_from_any_text(response_text)
+
         return {
             "description": response_text,
             "parse_error": True,
-            "search_queries": ["clothing fashion"],  # CRITICAL: Always include
+            "search_queries": extracted_queries if extracted_queries else ["women dress"],  # Fallback
             "type": "unknown",
             "colors": [],
             "style": "casual"
@@ -578,7 +580,15 @@ Return your analysis as structured JSON with relevant fields for the context."""
                 search_queries.append(component_queries[comp][0])
 
         if not search_queries:
-            search_queries = ["clothing fashion"]
+            # Build query from extracted items
+            for item in items[:2]:
+                item_type = item.get("type", "")
+                color = item.get("color", "")
+                if item_type and item_type != "unknown":
+                    query = f"{color} {item_type}".strip() if color and color != "unknown" else item_type
+                    search_queries.append(query)
+            if not search_queries:
+                search_queries = ["women dress"]  # Better default
 
         return {
             "current_items": items,
@@ -597,7 +607,7 @@ Return your analysis as structured JSON with relevant fields for the context."""
         if not isinstance(result, dict):
             return {
                 "original": result,
-                "search_queries": ["clothing fashion"],
+                "search_queries": ["women dress"],  # Better default
                 "parse_error": True
             }
 
@@ -642,7 +652,73 @@ Return your analysis as structured JSON with relevant fields for the context."""
         if parts:
             return [" ".join(parts)]
         else:
-            return ["clothing fashion style"]
+            # Try to extract from description if available
+            description = result.get("description", "")
+            if description:
+                extracted = self._extract_from_any_text(description)
+                if extracted:
+                    return extracted
+            # Last resort - at least use a category hint from context
+            return ["women dress"]  # More specific than "clothing fashion"
+
+    def _extract_from_any_text(self, text: str) -> List[str]:
+        """Extract useful search terms from any text response."""
+        text_lower = text.lower()
+
+        # Clothing types - prioritized
+        CLOTHING_TYPES = [
+            ("dress", "dress"), ("vestido", "dress"),
+            ("gown", "gown evening"), ("robe", "robe dress"),
+            ("skirt", "skirt"), ("falda", "skirt"),
+            ("pants", "pants"), ("jeans", "jeans"), ("pantalones", "pants"),
+            ("shirt", "shirt"), ("blouse", "blouse"), ("top", "top"),
+            ("jacket", "jacket"), ("coat", "coat"), ("blazer", "blazer"),
+            ("sweater", "sweater"), ("hoodie", "hoodie"),
+            ("shorts", "shorts"), ("swimsuit", "swimsuit"), ("bikini", "bikini"),
+        ]
+
+        COLORS = [
+            "black", "white", "blue", "red", "pink", "green", "orange", "yellow",
+            "purple", "brown", "grey", "gray", "beige", "navy", "cream", "gold",
+            "tan", "coral", "turquoise", "burgundy", "maroon", "olive"
+        ]
+
+        PATTERNS = [
+            "floral", "striped", "stripes", "plaid", "polka", "dots",
+            "solid", "print", "printed", "geometric", "checkered", "lace",
+            "embroidered", "sequin", "shell", "flower", "abstract"
+        ]
+
+        STYLES = [
+            "long", "short", "mini", "maxi", "midi", "sleeveless",
+            "formal", "casual", "elegant", "vintage", "modern", "bohemian"
+        ]
+
+        # Extract matches
+        found_type = None
+        for keyword, query_term in CLOTHING_TYPES:
+            if keyword in text_lower:
+                found_type = query_term
+                break
+
+        found_colors = [c for c in COLORS if c in text_lower]
+        found_patterns = [p for p in PATTERNS if p in text_lower]
+        found_styles = [s for s in STYLES if s in text_lower]
+
+        # Build query
+        query_parts = []
+        if found_colors:
+            query_parts.append(found_colors[0])
+        if found_patterns:
+            query_parts.append(found_patterns[0])
+        if found_styles:
+            query_parts.append(found_styles[0])
+        if found_type:
+            query_parts.append(found_type)
+
+        if query_parts:
+            return [" ".join(query_parts)]
+        return []
 
     def _generate_component_queries_from_items(
         self,
@@ -753,6 +829,23 @@ class ProductComparator:
                 markdown_table=""
             )
 
+        # Helper to parse price (handles "$33.96" or 33.96)
+        def parse_price(p):
+            price = p.get("price", 9999)
+            if isinstance(price, str):
+                price = price.replace("$", "").replace(",", "").strip()
+            try:
+                return float(price)
+            except:
+                return 9999
+
+        # Limit to 6 products max, sorted by price (cheapest first)
+        MAX_COMPARE = 6
+        sorted_products = sorted(products, key=parse_price)
+        products = sorted_products[:MAX_COMPARE]
+        if len(sorted_products) > MAX_COMPARE:
+            logger.info(f"Limited comparison to {MAX_COMPARE} cheapest products")
+
         # Auto-detect criteria if not provided
         if not criteria:
             criteria = self._auto_detect_criteria(products)
@@ -855,26 +948,22 @@ class ProductComparator:
                     summary += f", {p.get('category')}"
                 product_summaries.append(summary)
 
-            prompt = f"""Compare these products and provide insights:
+            prompt = f"""Compara estos {len(products)} productos (ordenados de menor a mayor precio) y da tu análisis EN ESPAÑOL:
 
 {chr(10).join(product_summaries)}
 
-Comparison criteria: {', '.join(criteria)}
+Criterios de comparación: {', '.join(criteria)}
 """
             if user_priorities:
-                prompt += f"User priorities: {', '.join(user_priorities)}\n"
+                prompt += f"Prioridades del usuario: {', '.join(user_priorities)}\n"
 
             prompt += """
-Provide a brief analysis in JSON format:
+Responde en JSON (TODO EN ESPAÑOL, usa NOMBRES de productos, NO números):
 {
-    "best_value": "product number with best price/quality ratio",
-    "highest_quality": "product number that seems highest quality",
-    "recommendation": "brief recommendation based on the comparison",
-    "pros_cons": {
-        "product_1": {"pros": ["..."], "cons": ["..."]},
-        ...
-    }
+    "best_value": "nombre del producto con mejor relación calidad-precio",
+    "recommendation": "1-2 oraciones recomendando por NOMBRE, ej: 'El Freja Coat a $30.99 es la mejor opción...'"
 }
+IMPORTANTE: Usa el NOMBRE del producto, nunca "producto 1" o "producto 8".
 """
 
             response = await llm.ainvoke(prompt)

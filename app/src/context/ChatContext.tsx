@@ -22,6 +22,7 @@ interface ChatMessage {
   search_method?: string | null
   step_results?: StepResultData[] | null  // Resultados de pasos multi-agente
   outfit_components?: Record<string, any[]> | null  // Componentes de outfit
+  comparison_table?: { markdown_table: string; insights: string[]; recommendation: string } | null  // Tabla de comparación
 }
 
 // Tipos para eventos de progreso (Thinking Steps)
@@ -248,7 +249,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       thinkingSteps: message.thinkingSteps || null,  // Include thinking steps for assistant messages
       search_method: message.search_method || null,
       step_results: message.step_results || null,  // Include step results for multi-step display
-      outfit_components: message.outfit_components || null  // Include outfit components
+      outfit_components: message.outfit_components || null,  // Include outfit components
+      comparison_table: message.comparison_table || null  // Include comparison table
     }
 
     let newConvId: string | null = null
@@ -415,7 +417,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 thinkingSteps: currentSteps.length > 0 ? currentSteps : null,
                 search_method: data.search_method || null,
                 step_results: data.step_results || null,
-                outfit_components: data.outfit_components || null
+                outfit_components: data.outfit_components || null,
+                comparison_table: data.comparison_table || null
               }, data.conversation_id)
               // Limpiar los pasos después de guardarlos
               setThinkingSteps([])

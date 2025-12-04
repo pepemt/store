@@ -103,6 +103,15 @@ PRINCIPIOS CLAVE:
   * "compara estos" + imágenes → extraer para comparación (type="comparison")
   * Múltiples personas/items → type="items" y procesar cada uno
 
+- CONTEXTO DE IMÁGENES PREVIAS (MUY IMPORTANTE):
+  * El historial incluye "[IMAGEN ANALIZADA] ..." cuando el usuario envió imágenes antes
+  * Cuando el usuario dice "busca mejor", "busca parecidos", "como el de la imagen", "similar al que te mostré":
+    - NUNCA uses analyze_images si no hay imagen nueva (fallará)
+    - USA DIRECTAMENTE el tool "search" con la query del historial
+  * Ejemplo: Si el historial dice "Contenido detectado: orange floral long dress"
+    → Genera directamente: {"tool": "search", "params": {"query": "orange floral long dress"}}
+    → NO generes: {"tool": "analyze_images", ...} (no hay imagen que analizar)
+
 - Para OUTFIT REQUESTS (cuando piden conjunto/outfit/look):
   * SIEMPRE usa analyze_images con type="outfit" primero
   * El análisis retornará component_queries con búsquedas separadas por componente (top, bottom, shoes, accessories)
@@ -126,8 +135,31 @@ PRINCIPIOS CLAVE:
   * "500 pesos" → 500 MXN → ~$29 USD → filtrar por ese precio
   * El presupuesto es TOTAL, no por item (a menos que se especifique)
 
-- Para COMPARACIONES: Soportar N productos, M criterios
-  * No limitarte a 2 productos
+- Para COMPARACIONES (cuando el usuario quiere decidir entre opciones):
+  * Detecta frases como: "cuál me conviene", "cuál es mejor", "qué me recomiendas", "compara", "diferencias entre"
+  * Si el usuario dice "compara los que me mostraste" o similar, USA LOS PRODUCTOS ANTERIORES (previous_products)
+  * Si hay previous_products disponibles y el usuario hace referencia a ellos, usa compare directamente SIN search
+  * Solo busca nuevos productos si el usuario pide algo NUEVO
+
+  Ejemplo cuando HAY previous_products y el usuario dice "compara esos":
+  {
+    "steps": [
+      {"id": "step_1", "tool": "compare", "params": {"products": "USE_PREVIOUS_PRODUCTS", "criteria": ["price", "category", "color"]}, "depends_on": []}
+    ]
+  }
+
+  Ejemplo cuando NO hay previous_products o el usuario pide algo nuevo:
+  {
+    "steps": [
+      {"id": "step_1", "tool": "search", "params": {"query": "jacket coat men black", "limit": 5}, "depends_on": []},
+      {"id": "step_2", "tool": "compare", "params": {"products": "{step_1.products}", "criteria": ["price", "category", "color"]}, "depends_on": ["step_1"]}
+    ]
+  }
+
+  IMPORTANTE para compare:
+  - Máximo 5 productos para comparar (evitar tablas muy anchas)
+  - Solo usar criterios que EXISTAN en los productos: price, category, color, department
+  - NO usar criterios inventados como "material", "warmth", "style" (no existen en la BD)
 
 - Para VARIANTES: Si detectas múltiples personas/items/opciones:
   * Generar una variante por cada uno
@@ -386,16 +418,28 @@ async def execute_tool(tool_name: str, params: Dict[str, Any], state: UnifiedAge
 
         elif tool_name == "compare":
             products = params.get("products", [])
+
+            # Handle USE_PREVIOUS_PRODUCTS - use products from previous turn
+            if products == "USE_PREVIOUS_PRODUCTS" or (isinstance(products, str) and "PREVIOUS" in products.upper()):
+                previous_products = state.get("previous_products", [])
+                if previous_products:
+                    products = previous_products
+                    logger.info(f"Using {len(products)} previous products for comparison")
+                else:
+                    logger.warning("USE_PREVIOUS_PRODUCTS requested but no previous products available")
+                    return {"comparison": {"markdown_table": "", "insights": {}, "recommendation": "No hay productos anteriores para comparar."}}
+
             result = await compare_products(
                 products=products,
                 criteria=params.get("criteria"),
                 user_priorities=params.get("priorities")
             )
+            # ComparisonResult is a TypedDict, access with dict notation
             return {
                 "comparison": {
-                    "markdown_table": result.markdown_table,
-                    "insights": result.insights,
-                    "recommendation": result.recommendation
+                    "markdown_table": result.get("markdown_table", ""),
+                    "insights": result.get("insights", {}),
+                    "recommendation": result.get("recommendation", "")
                 }
             }
 
@@ -476,14 +520,44 @@ async def orchestrator_node(state: UnifiedAgentState) -> Dict[str, Any]:
     if budget:
         context_parts.append(f"PRESUPUESTO DETECTADO: {budget['amount']} {budget['currency']} = ${budget['amount_usd']:.2f} USD")
 
-    # Check for images
+    # Check for current image
     has_image = state.get("has_image", False) or state.get("image_data")
     if has_image:
-        context_parts.append("IMAGEN ADJUNTA: El usuario envió una imagen")
-        if state.get("image_description"):
-            context_parts.append(f"Descripción previa: {state['image_description'][:200]}")
+        context_parts.append("IMAGEN ADJUNTA: El usuario envió una imagen en este turno")
+    # Note: Previous image descriptions are now in the conversation history as [Análisis de imagen: ...]
+    # The LLM will see them naturally in the messages
+
+    # Check for previous products (from last turn)
+    previous_products = state.get("previous_products", [])
+    if previous_products:
+        product_names = [p.get("name", "?") for p in previous_products[:5]]
+        context_parts.append(f"PRODUCTOS ANTERIORES: {len(previous_products)} productos mostrados previamente: {', '.join(product_names)}")
+        context_parts.append("Si el usuario quiere comparar 'esos' o 'los que mostraste', usa compare con products='USE_PREVIOUS_PRODUCTS'")
 
     context_str = "\n".join(context_parts) if context_parts else "Sin contexto adicional"
+
+    # Build conversation history for LLM context (last 6 messages before current)
+    conversation_history = []
+    for msg in messages[:-1]:  # All except current message
+        if isinstance(msg, dict):
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+        else:
+            role = getattr(msg, "role", "unknown")
+            content = getattr(msg, "content", str(msg))
+
+        # Keep image analysis messages in full, truncate others
+        if "[IMAGEN ANALIZADA]" in content or "[Análisis de imagen" in content:
+            # This is important context - keep it
+            conversation_history.append(f"[CONTEXTO]: {content}")
+        elif len(content) > 200:
+            content = content[:200] + "..."
+            conversation_history.append(f"{role}: {content}")
+        else:
+            conversation_history.append(f"{role}: {content}")
+
+    # Keep last 6 messages for context
+    history_str = "\n".join(conversation_history[-6:]) if conversation_history else ""
 
     # Build orchestrator prompt
     orchestrator_prompt = f"""
@@ -499,10 +573,20 @@ Genera tu plan de ejecución como JSON:
 """
 
     try:
-        # Call LLM
+        # Build the full prompt with history
+        prompt_parts = []
+        if history_str:
+            prompt_parts.append(f"HISTORIAL DE CONVERSACIÓN:\n{history_str}")
+        if context_str and context_str != "Sin contexto adicional":
+            prompt_parts.append(f"CONTEXTO ACTUAL:\n{context_str}")
+        prompt_parts.append(f"MENSAJE ACTUAL DEL USUARIO:\n{user_message}")
+
+        full_prompt = "\n\n".join(prompt_parts)
+
+        # Call LLM with conversation history
         response = await llm.ainvoke([
             SystemMessage(content=ORCHESTRATOR_SYSTEM_PROMPT),
-            HumanMessage(content=f"CONTEXTO:\n{context_str}\n\nMENSAJE:\n{user_message}")
+            HumanMessage(content=full_prompt)
         ])
 
         response_text = response.content if hasattr(response, 'content') else str(response)
@@ -622,10 +706,14 @@ async def executor_node(state: UnifiedAgentState) -> Dict[str, Any]:
             resolved_params, unresolved_refs = _resolve_params(step.get("params", {}), results)
 
             # Check if there are still unresolved placeholders
-            has_unresolved = any(
-                isinstance(v, str) and '{' in v and '}' in v
-                for v in resolved_params.values()
-            )
+            # Only check strings that look like unresolved references (not JSON)
+            def is_unresolved_ref(v):
+                if not isinstance(v, str):
+                    return False
+                # Look for patterns like {step_X.field} that weren't resolved
+                return bool(re.search(r'\{step_\d+\.[^}]+\}', v))
+
+            has_unresolved = any(is_unresolved_ref(v) for v in resolved_params.values())
 
             if has_unresolved:
                 logger.error(f"Step {step['id']} SKIPPED: unresolved refs {unresolved_refs}")
@@ -678,16 +766,43 @@ async def executor_node(state: UnifiedAgentState) -> Dict[str, Any]:
 
     # Collect all products from results
     all_products = []
+    image_description = None
+
     for step_id, result in results.items():
-        if isinstance(result, dict) and "products" in result:
-            all_products.extend(result["products"])
+        if isinstance(result, dict):
+            if "products" in result:
+                all_products.extend(result["products"])
+
+            # Extract image description from analyze_images results
+            if "analyses" in result and result["analyses"]:
+                analysis = result["analyses"][0]
+
+                # Only use description if it's real content, not a fallback
+                GENERIC_FALLBACKS = ["women dress", "clothing fashion", "women dress formal"]
+
+                if analysis.get("description") and not analysis.get("parse_error"):
+                    # Real description from vision model
+                    image_description = analysis["description"]
+                    logger.info(f"Extracted real image_description: {image_description[:100]}...")
+                elif analysis.get("search_queries"):
+                    queries = analysis["search_queries"]
+                    # Only save if queries are specific, not generic fallbacks
+                    if queries and queries[0] not in GENERIC_FALLBACKS:
+                        image_description = f"Imagen analizada - buscar: {', '.join(queries[:3])}"
+                        logger.info(f"Extracted search queries as description: {image_description}")
 
     logger.info(f"Executor completado: {len(executed)} pasos, {len(all_products)} productos")
 
-    return {
+    result_state = {
         "execution_results": results,
         "products_found": all_products[:20]
     }
+
+    # Add image_description if found
+    if image_description:
+        result_state["image_description"] = image_description
+
+    return result_state
 
 
 async def response_generator_node(state: UnifiedAgentState) -> Dict[str, Any]:
@@ -813,6 +928,7 @@ NO uses formato de lista con viñetas, escribe de forma natural y conversacional
         # Build step_results for multi-step display
         step_results = None
         outfit_components = None
+        comparison_table = None
 
         if execution_results and _is_multi_step_request(state):
             step_results = _build_step_results(execution_results, state.get("execution_plan"))
@@ -821,9 +937,22 @@ NO uses formato de lista con viñetas, escribe de forma natural y conversacional
             if _is_outfit_request(state):
                 outfit_components = _build_outfit_components(execution_results)
 
+        # Check for comparison results
+        for step_id, result in (execution_results or {}).items():
+            if isinstance(result, dict) and result.get("comparison"):
+                comparison = result["comparison"]
+                comparison_table = {
+                    "markdown_table": comparison.get("markdown_table", ""),
+                    "insights": comparison.get("insights", []),
+                    "recommendation": comparison.get("recommendation", "")
+                }
+                logger.info(f"Found comparison table with {len(comparison.get('insights', []))} insights")
+                break
+
         # Build structured response
+        response_type = "comparison" if comparison_table else ("multi_step" if step_results else "single")
         structured_response: StructuredResponse = {
-            "type": "multi_step" if step_results else "single",
+            "type": response_type,
             "main_message": response_text,
             "products": products,
         }
@@ -833,6 +962,9 @@ NO uses formato de lista con viñetas, escribe de forma natural y conversacional
 
         if outfit_components:
             structured_response["outfit_components"] = outfit_components
+
+        if comparison_table:
+            structured_response["comparison_table"] = comparison_table
 
         return {
             "response": response_text,
@@ -1003,8 +1135,12 @@ def _resolve_params(params: Dict[str, Any], results: Dict[str, Any]) -> tuple:
                 if isinstance(current, list):
                     if idx < len(current):
                         current = current[idx]
+                    elif len(current) > 0:
+                        # Fallback: use last available element if index out of range
+                        logger.info(f"Index {idx} out of range, using index 0 as fallback for ref '{ref}'")
+                        current = current[0]
                     else:
-                        logger.warning(f"Index {idx} out of range for list of size {len(current)} in ref '{ref}'")
+                        logger.warning(f"Empty list for ref '{ref}'")
                         return None, False
                 else:
                     logger.warning(f"Expected list but got {type(current).__name__} for index {idx} in ref '{ref}'")
@@ -1042,21 +1178,33 @@ def _resolve_params(params: Dict[str, Any], results: Dict[str, Any]) -> tuple:
 
     for key, value in params.items():
         if isinstance(value, str):
-            # Find all references {step_X.field[N].subfield}
-            def replace_ref(match):
-                ref = match.group(1)
+            # Check if the entire value is a single reference {step_X.field}
+            single_ref_match = re.fullmatch(r'\{([^}]+)\}', value.strip())
+            if single_ref_match:
+                # Entire value is a reference - resolve and keep original type
+                ref = single_ref_match.group(1)
                 resolved_value, success = resolve_reference(ref)
-
-                if not success:
+                if success:
+                    resolved[key] = resolved_value  # Keep as list/dict, don't stringify
+                else:
                     unresolved_refs.append(ref)
-                    return match.group(0)  # Keep original if can't resolve
+                    resolved[key] = value  # Keep original
+            else:
+                # Value contains references mixed with text - stringify resolved values
+                def replace_ref(match):
+                    ref = match.group(1)
+                    resolved_value, success = resolve_reference(ref)
 
-                if isinstance(resolved_value, (dict, list)):
-                    return json.dumps(resolved_value)
-                return str(resolved_value)
+                    if not success:
+                        unresolved_refs.append(ref)
+                        return match.group(0)  # Keep original if can't resolve
 
-            # Replace all {references} in the string
-            resolved[key] = re.sub(r'\{([^}]+)\}', replace_ref, value)
+                    if isinstance(resolved_value, (dict, list)):
+                        return json.dumps(resolved_value)
+                    return str(resolved_value)
+
+                # Replace all {references} in the string
+                resolved[key] = re.sub(r'\{([^}]+)\}', replace_ref, value)
         elif isinstance(value, list):
             # Handle list of potential references
             resolved_list = []

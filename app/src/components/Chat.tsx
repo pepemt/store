@@ -190,6 +190,125 @@ interface StepResultData {
   error?: string;
 }
 
+// Tipo para tabla de comparación
+interface ComparisonTableData {
+  markdown_table: string;
+  insights: string[];
+  recommendation: string;
+}
+
+// Componente para mostrar comparación de productos (formato cards, no tabla)
+const ComparisonTableDisplay: React.FC<{ comparison: ComparisonTableData }> = ({ comparison }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Parse markdown table to structured data
+  const parseTable = (markdown: string) => {
+    const lines = markdown.trim().split('\n').filter(line => line.trim());
+    if (lines.length < 3) return { products: [], criteria: [] };
+
+    const parseRow = (line: string) =>
+      line.split('|').map(cell => cell.trim()).filter(cell => cell);
+
+    const headers = parseRow(lines[0]); // ["Criterio", "Prod1", "Prod2", ...]
+    const productNames = headers.slice(1); // Skip "Criterio"
+    const dataRows = lines.slice(2).map(parseRow); // Skip header and separator
+
+    // Build product objects
+    const products = productNames.map((name, idx) => {
+      const data: Record<string, string> = { name };
+      dataRows.forEach(row => {
+        const criterion = row[0];
+        const value = row[idx + 1] || 'N/A';
+        if (value !== 'N/A') {
+          data[criterion.toLowerCase()] = value;
+        }
+      });
+      return data;
+    });
+
+    // Get criteria that have at least one non-N/A value
+    const criteria = dataRows
+      .map(row => row[0])
+      .filter(criterion =>
+        dataRows.find(r => r[0] === criterion)?.slice(1).some(v => v !== 'N/A')
+      );
+
+    return { products: products.slice(0, 6), criteria }; // Max 6 products
+  };
+
+  const { products, criteria } = parseTable(comparison.markdown_table);
+
+  // Find best value (lowest price)
+  const getBestPrice = () => {
+    const prices = products
+      .map((p, idx) => ({ idx, price: parseFloat(p.price?.replace('$', '') || '999999') }))
+      .filter(p => !isNaN(p.price));
+    if (prices.length === 0) return -1;
+    return prices.reduce((min, p) => p.price < min.price ? p : min, prices[0]).idx;
+  };
+  const bestPriceIdx = getBestPrice();
+
+  return (
+    <div className="mt-3 border rounded-lg overflow-hidden bg-white shadow-sm">
+      {/* Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-2.5 bg-gradient-to-r from-purple-50 to-white hover:from-purple-100 hover:to-purple-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <svg className="h-4 w-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span className="font-semibold text-xs text-gray-800">Comparativa ({products.length} productos)</span>
+        </div>
+        <svg
+          className={`h-4 w-4 text-gray-500 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isExpanded && (
+        <div className="p-2 border-t">
+          {/* Grid compacto de productos */}
+          {products.length > 0 && (
+            <div className="grid grid-cols-3 gap-1">
+              {products.map((product, idx) => (
+                <div
+                  key={idx}
+                  className={`p-1.5 rounded text-center relative ${
+                    idx === bestPriceIdx
+                      ? 'bg-green-50 ring-1 ring-green-400'
+                      : 'bg-gray-50'
+                  }`}
+                >
+                  <p className="text-[10px] font-medium text-gray-800 truncate" title={product.name}>
+                    {product.name?.length > 12 ? product.name.substring(0, 12) + '...' : product.name}
+                  </p>
+                  <p className={`text-xs font-bold ${idx === bestPriceIdx ? 'text-green-600' : 'text-purple-700'}`}>
+                    {product.price || '-'}
+                    {idx === bestPriceIdx && <span className="text-[8px] ml-0.5">✓</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recomendación compacta */}
+          {comparison.recommendation && (
+            <div className="mt-2 p-1.5 bg-purple-50 rounded text-[10px] text-purple-800">
+              <span className="font-semibold">💡</span> {comparison.recommendation}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Componente para mostrar resultados de pasos multi-agente
 const StepResultsDisplay: React.FC<{ stepResults: StepResultData[]; isExpanded?: boolean }> = ({ stepResults, isExpanded = false }) => {
   // By default, expand all steps that have products (skip step_1 analysis)
@@ -828,6 +947,11 @@ export default function Chat() {
                                 {/* Mostrar historial de pensamiento colapsable */}
                                 {message.thinkingSteps && message.thinkingSteps.length > 0 && (
                                   <ThinkingStepsHistory steps={message.thinkingSteps} />
+                                )}
+
+                                {/* Comparison Table Display */}
+                                {(message as any).comparison_table && (
+                                  <ComparisonTableDisplay comparison={(message as any).comparison_table} />
                                 )}
 
                                 {/* Step Results (multi-step task display) */}

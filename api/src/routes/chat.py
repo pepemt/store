@@ -282,6 +282,10 @@ async def websocket_chat_endpoint(
                     connection_manager=manager
                 )
 
+                # Get conversation context with previous products
+                conv_context = chat_session.get_context(msg_conversation_id)
+                previous_products = conv_context.get("last_products", [])
+
                 # Create initial state with image support
                 # The state format works for both legacy and orchestrator graphs
                 initial_state = {
@@ -293,7 +297,8 @@ async def websocket_chat_endpoint(
                     "category_filter": None,
                     "department_filter": None,
                     "products_found": [],
-                    "conversation_context": chat_session.get_context(msg_conversation_id),
+                    "conversation_context": conv_context,
+                    "previous_products": previous_products,  # Products from previous turn
                     # Image fields
                     "image_data": image_data,
                     "image_mime_type": image_mime_type if image_data else None,
@@ -331,19 +336,21 @@ async def websocket_chat_endpoint(
                 products = result.get("products_found", [])
                 intent = result.get("intent") or result.get("user_intent_summary", "unknown")
 
+                # If image was analyzed, add interpretation to history as context
+                if result.get("image_description"):
+                    # Format that's clear for the LLM to understand and reference later
+                    image_note = f"[IMAGEN ANALIZADA] El usuario envió una imagen. Contenido detectado: {result['image_description']}"
+                    chat_session.add_message("system", image_note, msg_conversation_id)
+                    logger.info(f"Added image analysis to conversation history: {result['image_description'][:100]}...")
+
                 # Add assistant message to session
                 chat_session.add_message("assistant", assistant_message, msg_conversation_id)
 
-                # Update session context - include image description if present
+                # Update session context
                 context_update = {
                     "last_intent": intent,
-                    "last_products": products[:3] if products else []  # Store up to 3 products
+                    "last_products": products[:10] if products else []  # Store up to 10 products for comparisons
                 }
-
-                # Save image description for future reference in conversation
-                if result.get("image_description"):
-                    context_update["last_image_description"] = result.get("image_description")
-                    logger.info(f"Saved image description to session context for future reference")
 
                 chat_session.update_context(context_update, msg_conversation_id)
                 search_method = result.get("search_method")
@@ -374,6 +381,7 @@ async def websocket_chat_endpoint(
                         response_data["variants"] = structured_response.get("variants", [])
                     # If it has comparison table
                     if structured_response.get("comparison_table"):
+                        logger.info(f"comparison_table found with recommendation: {structured_response['comparison_table'].get('recommendation', '')[:50]}...")
                         response_data["comparison_table"] = structured_response["comparison_table"]
                     # If it has budget summary
                     if structured_response.get("budget_summary"):

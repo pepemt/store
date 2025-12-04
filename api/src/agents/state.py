@@ -290,6 +290,7 @@ class UnifiedAgentState(TypedDict):
     # Accumulated products
     products_found: NotRequired[List[ProductDict]]
     products_pool: NotRequired[List[ProductDict]]
+    previous_products: NotRequired[List[ProductDict]]  # Products from previous turn (for comparisons)
 
     # Execution tracking
     execution_results: NotRequired[Dict[str, Any]]
