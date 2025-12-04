@@ -310,7 +310,12 @@ const ComparisonTableDisplay: React.FC<{ comparison: ComparisonTableData }> = ({
 };
 
 // Componente para mostrar resultados de pasos multi-agente
-const StepResultsDisplay: React.FC<{ stepResults: StepResultData[]; isExpanded?: boolean }> = ({ stepResults, isExpanded = false }) => {
+const StepResultsDisplay: React.FC<{
+  stepResults: StepResultData[];
+  isExpanded?: boolean;
+  onViewProduct?: (productId: number) => void;
+  onAddToCart?: (product: any) => void;
+}> = ({ stepResults, isExpanded = false, onViewProduct, onAddToCart }) => {
   // By default, expand all steps that have products (skip step_1 analysis)
   const initialExpanded = new Set(
     stepResults
@@ -420,9 +425,24 @@ const StepResultsDisplay: React.FC<{ stepResults: StepResultData[]; isExpanded?:
                         <p className="text-[10px] font-medium text-gray-800 leading-tight line-clamp-1" title={product.name}>
                           {product.name}
                         </p>
-                        <p className="text-xs font-bold" style={{ color: "#6e348d" }}>
+                        <p className="text-xs font-bold mb-1" style={{ color: "#6e348d" }}>
                           ${product.price?.toFixed(2)}
                         </p>
+                        {/* Botones Ver y Añadir */}
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => onViewProduct?.(product.id)}
+                            className="flex-1 text-[9px] py-1 px-1.5 border border-[#6e348d] text-[#6e348d] rounded hover:bg-[#6e348d] hover:text-white transition-colors"
+                          >
+                            Ver
+                          </button>
+                          <button
+                            onClick={() => onAddToCart?.(product)}
+                            className="flex-1 text-[9px] py-1 px-1.5 bg-[#6e348d] text-white rounded hover:opacity-90 transition-opacity"
+                          >
+                            Añadir
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -958,7 +978,14 @@ export default function Chat() {
                                 {(() => {
                                   const stepResults = (message as any).step_results;
                                   if (stepResults && stepResults.length > 0) {
-                                    return <StepResultsDisplay stepResults={stepResults} isExpanded={isExpanded} />;
+                                    return (
+                                      <StepResultsDisplay
+                                        stepResults={stepResults}
+                                        isExpanded={isExpanded}
+                                        onViewProduct={handleViewProduct}
+                                        onAddToCart={handleAddToCart}
+                                      />
+                                    );
                                   }
                                   return null;
                                 })()}
