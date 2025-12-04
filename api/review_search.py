@@ -1,5 +1,6 @@
 
 import os
+import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
@@ -15,6 +16,10 @@ from text.embeddings import EmbeddingModel
 
 logger = logging.getLogger(__name__)
 
+# Default scoring weights (used if weights file not available)
+DEFAULT_TOP_SIMILARITY_WEIGHT = 0.6
+DEFAULT_AVG_SIMILARITY_WEIGHT = 0.4
+
 # MLflow configuration for artifact download
 MLFLOW_EXPERIMENT_NAME = "review-search-artifacts"
 MLFLOW_RUN_NAME = "review-artifacts-v1"
@@ -22,7 +27,7 @@ MLFLOW_RUN_NAME = "review-artifacts-v1"
 
 def _download_artifacts_from_mlflow(local_dir: str, artifact_files: List[str]) -> bool:
     """
-    Download review artifacts from MLflow if not present locally.
+    Download review artifacts from MLflow (always fetches from MLflow).
 
     Args:
         local_dir: Local directory to store artifacts
@@ -34,13 +39,7 @@ def _download_artifacts_from_mlflow(local_dir: str, artifact_files: List[str]) -
     local_path = Path(local_dir)
     local_path.mkdir(parents=True, exist_ok=True)
 
-    # Check if all files already exist locally
-    all_exist = all((local_path / f).exists() for f in artifact_files)
-    if all_exist:
-        logger.info(f"All review artifacts found locally in {local_dir}")
-        return True
-
-    # Try to download from MLflow
+    # Always download from MLflow to ensure consistency
     try:
         import mlflow
         from mlflow.tracking import MlflowClient
@@ -52,6 +51,17 @@ def _download_artifacts_from_mlflow(local_dir: str, artifact_files: List[str]) -
         if not tracking_uri:
             logger.warning("MLFLOW_TRACKING_URI not set, cannot download artifacts")
             return False
+
+        # Configure S3/MinIO credentials for boto3
+        s3_access_key = os.getenv("MLFLOW_S3_ACCESS_KEY_ID")
+        s3_secret_key = os.getenv("MLFLOW_S3_SECRET_ACCESS_KEY")
+        s3_endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
+        if s3_access_key:
+            os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key
+        if s3_secret_key:
+            os.environ["AWS_SECRET_ACCESS_KEY"] = s3_secret_key
+        if s3_endpoint:
+            os.environ["MLFLOW_S3_ENDPOINT_URL"] = s3_endpoint
 
         mlflow.set_tracking_uri(tracking_uri)
         client = MlflowClient(tracking_uri=tracking_uri)
@@ -75,14 +85,13 @@ def _download_artifacts_from_mlflow(local_dir: str, artifact_files: List[str]) -
         run_id = runs[0].info.run_id
         logger.info(f"Downloading review artifacts from MLflow run {run_id}...")
 
-        # Download each artifact
+        # Download each artifact (overwrite local files)
         for filename in artifact_files:
             local_file = local_path / filename
             if local_file.exists():
-                logger.info(f"  {filename} already exists locally, skipping")
-                continue
+                local_file.unlink()  # Remove local file to force fresh download
 
-            logger.info(f"  Downloading {filename}...")
+            logger.info(f"  Downloading {filename} from MLflow...")
             try:
                 mlflow.artifacts.download_artifacts(
                     run_id=run_id,
@@ -139,6 +148,7 @@ class ReviewSearchEngine:
         emb_file: str = "review_embeddings_qwen2.npy",
         df_file: str = "df_with_clusters_qwen2.pk1",
         index_file: str = "faiss_reviews_qwen2.index",
+        weights_file: str = "review_scoring_weights.json",
         model_name: str = "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
         use_mlflow: bool = True,
     ):
@@ -146,21 +156,42 @@ class ReviewSearchEngine:
         self.emb_file = emb_file
         self.df_file = df_file
         self.index_file = index_file
+        self.weights_file = weights_file
 
         # Try to download artifacts from MLflow if enabled and not present locally
         if use_mlflow:
-            artifact_files = [emb_file, df_file, index_file]
+            artifact_files = [emb_file, df_file, index_file, weights_file]
             _download_artifacts_from_mlflow(artifacts_dir, artifact_files)
 
         self.emb_path = os.path.join(artifacts_dir, emb_file)
         self.df_path = os.path.join(artifacts_dir, df_file)
         self.index_path = os.path.join(artifacts_dir, index_file)
+        self.weights_path = os.path.join(artifacts_dir, weights_file)
         self.model = EmbeddingModel(model_name=model_name, use_gpu=False)
+
+        # Load scoring weights from MLflow artifact
+        self.top_similarity_weight, self.avg_similarity_weight = self._load_weights()
 
         # Carga datos
         self.reviews_df = self._load_reviews()
         self.embeddings = self._load_embeddings()
         self.index = self._load_or_build_index()
+
+    def _load_weights(self) -> Tuple[float, float]:
+        """Load scoring weights from JSON file (downloaded from MLflow)."""
+        if os.path.exists(self.weights_path):
+            try:
+                with open(self.weights_path, "r") as f:
+                    config = json.load(f)
+                weights = config.get("weights", {})
+                top_w = weights.get("top_similarity_weight", DEFAULT_TOP_SIMILARITY_WEIGHT)
+                avg_w = weights.get("avg_similarity_weight", DEFAULT_AVG_SIMILARITY_WEIGHT)
+                logger.info(f"Loaded review scoring weights from MLflow: top={top_w}, avg={avg_w}")
+                return float(top_w), float(avg_w)
+            except Exception as e:
+                logger.warning(f"Failed to load weights from {self.weights_path}: {e}")
+        logger.info(f"Using default scoring weights: top={DEFAULT_TOP_SIMILARITY_WEIGHT}, avg={DEFAULT_AVG_SIMILARITY_WEIGHT}")
+        return DEFAULT_TOP_SIMILARITY_WEIGHT, DEFAULT_AVG_SIMILARITY_WEIGHT
 
     def _load_reviews(self) -> pd.DataFrame:
         logger.info(f"Cargando reviews desde {self.df_path}")
@@ -225,7 +256,8 @@ class ReviewSearchEngine:
 
         ranked: List[Tuple[int, float, Dict[str, Any]]] = []
         for pid, data in per_product.items():
-            score = data["top_similarity"] * 0.6 + (data["score_sum"] / data["count"]) * 0.4
+            score = (data["top_similarity"] * self.top_similarity_weight +
+                     (data["score_sum"] / data["count"]) * self.avg_similarity_weight)
             ranked.append((pid, score, data["top_review"]))
         ranked.sort(key=lambda x: x[1], reverse=True)
         return ranked

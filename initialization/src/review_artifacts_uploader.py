@@ -24,6 +24,7 @@ ARTIFACT_FILES = [
     "review_embeddings_qwen2.npy",
     "df_with_clusters_qwen2.pk1",
     "faiss_reviews_qwen2.index",
+    "review_scoring_weights.json",
 ]
 
 
@@ -40,6 +41,18 @@ def _load_mlflow_config():
     registry_uri = os.getenv("MLFLOW_REGISTRY_URI")
     if registry_uri:
         mlflow.set_registry_uri(registry_uri)
+
+    # Configure S3/MinIO credentials for boto3 (used by MLflow for artifact storage)
+    s3_access_key = os.getenv("MLFLOW_S3_ACCESS_KEY_ID")
+    s3_secret_key = os.getenv("MLFLOW_S3_SECRET_ACCESS_KEY")
+    s3_endpoint = os.getenv("MLFLOW_S3_ENDPOINT_URL")
+
+    if s3_access_key:
+        os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key
+    if s3_secret_key:
+        os.environ["AWS_SECRET_ACCESS_KEY"] = s3_secret_key
+    if s3_endpoint:
+        os.environ["MLFLOW_S3_ENDPOINT_URL"] = s3_endpoint
 
     return tracking_uri
 
