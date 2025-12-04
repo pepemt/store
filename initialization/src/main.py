@@ -8,8 +8,10 @@ from .loader import (
     load_articles_from_csv,
     load_customers_from_csv,
     load_transactions_from_csv,
+    load_reviews_from_pickle,
 )
 from .image_uploader import upload_images_to_s3
+from .review_artifacts_uploader import upload_review_artifacts_to_mlflow
 
 load_dotenv()
 logger = setup_logging()
@@ -24,9 +26,11 @@ async def async_main():
     db_initialized = False
 
     data_dir = ".data/raw"
+    reviews_dir = ".data/reviews"
     articles_csv = f"{data_dir}/articles.csv"
     customers_csv = f"{data_dir}/customers.csv"
     transactions_csv = f"{data_dir}/transactions_train.csv"
+    reviews_pickle = f"{reviews_dir}/df_with_clusters_qwen2.pk1"
 
     try:
         # Create databases if they do not exist
@@ -74,7 +78,28 @@ async def async_main():
         logger.info(f"Loaded {articles_count} articles.")
         logger.info(f"Loaded {customers_count} customers.")
         logger.info(f"Loaded {transactions_count} transactions.")
+
+        # Load reviews from pickle (if file exists)
+        if os.path.exists(reviews_pickle):
+            logger.info("\n" + "=" * 70)
+            logger.info("Starting reviews loading from pickle...")
+            logger.info("=" * 70)
+            reviews_count = await load_reviews_from_pickle(reviews_pickle, batch_size=5_000)
+            logger.info(f"Loaded {reviews_count} reviews.")
+        else:
+            logger.warning(f"Reviews pickle not found at {reviews_pickle}, skipping...")
+
         logger.info("Data loading completed successfully.")
+
+        # Upload review ML artifacts to MLflow (optional, won't block if fails)
+        try:
+            logger.info("\n" + "=" * 70)
+            logger.info("Starting review ML artifacts upload to MLflow...")
+            logger.info("=" * 70)
+            upload_review_artifacts_to_mlflow(reviews_dir)
+        except Exception as e:
+            logger.warning(f"Review artifacts upload failed (non-critical): {e}")
+            logger.info("Continuing with initialization...")
 
         # Upload product images to S3 (optional, won't block if fails)
         try:

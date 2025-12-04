@@ -9,6 +9,7 @@ import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import CachedImage from '../components/CachedImage'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
+import { ReviewsSection } from '../components/ReviewsSection'
 
 interface SimilarProduct {
   id: string | number
@@ -222,6 +223,9 @@ export default function ProductDetails() {
             </div>
           </div>
         </div>
+
+        {/* Reviews Section */}
+        <ReviewsSection articleId={Number(id)} />
 
         {/* Similar Products Section */}
         <section className="mt-16 border-t border-gray-200 pt-12">

@@ -15,6 +15,7 @@ from .metadata import router as metadata_router
 from .transcribe import router as transcribe_router
 from .landing import router as landing_router
 from .landing import warmup_cache as warmup_landing_cache
+from .reviews import router as reviews_router
 
 __all__ = [
     "auth_router",
@@ -29,4 +30,5 @@ __all__ = [
     "transcribe_router",
     "landing_router",
     "warmup_landing_cache",
+    "reviews_router",
 ]

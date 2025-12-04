@@ -246,3 +246,54 @@ class Database:
             session.add_all(transactions)
             await session.commit()
             return len(transactions)
+
+    @staticmethod
+    async def count_reviews() -> int:
+        """Count total reviews in database."""
+        from database.models import Review
+        async with Database.get_session() as session:
+            result = await session.execute(select(func.count()).select_from(Review))
+            return result.scalar()
+
+    @staticmethod
+    async def bulk_insert_reviews(reviews: list) -> int:
+        """
+        Inserción en bloque simple usando add_all.
+        Asume que no hay conflictos (tablas vacías o datos nuevos).
+        """
+        async with Database.get_session() as session:
+            session.add_all(reviews)
+            await session.commit()
+            return len(reviews)
+
+    @staticmethod
+    async def get_reviews_by_article(article_id: int, limit: int = 10, offset: int = 0) -> list:
+        """Get reviews for a specific article."""
+        from database.models import Review
+        async with Database.get_session() as session:
+            result = await session.execute(
+                select(Review)
+                .where(Review.article_id == article_id)
+                .order_by(Review.review_stars.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            return result.scalars().all()
+
+    @staticmethod
+    async def get_review_stats_by_article(article_id: int) -> dict:
+        """Get review statistics for a specific article."""
+        from database.models import Review
+        async with Database.get_session() as session:
+            result = await session.execute(
+                select(
+                    func.count(Review.id).label('total'),
+                    func.avg(Review.review_stars).label('average')
+                )
+                .where(Review.article_id == article_id)
+            )
+            row = result.first()
+            return {
+                'total': row.total or 0,
+                'average': float(row.average) if row.average else 0.0
+            }

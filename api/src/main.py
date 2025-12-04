@@ -27,6 +27,7 @@ from .routes import (
     transcribe_router,
     landing_router,
     warmup_landing_cache,
+    reviews_router,
 )
 
 from database.lib import Database
@@ -56,6 +57,7 @@ app.include_router(recommendations_router, prefix="/api/v1", tags=["recommendati
 app.include_router(metadata_router, prefix="/api/v1/metadata", tags=["metadata"])
 app.include_router(transcribe_router, prefix="", tags=["stt"])
 app.include_router(landing_router, prefix="/api/v1/landing", tags=["landing"])
+app.include_router(reviews_router, prefix="/api/v1/reviews", tags=["reviews"])
 
 # Servir archivos estáticos del frontend (si existen)
 STATIC_DIR = Path(__file__).parent / "static"

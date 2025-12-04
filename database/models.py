@@ -200,6 +200,34 @@ class Order(Base):
         return f"<Order(id={self.id}, customer_id='{self.customer_id[:10]}...', status='{self.status}', total={self.total_amount})>"
 
 
+class Review(Base):
+    """Modelo para reviews de productos."""
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    article_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("articles.article_id"), nullable=False
+    )
+    customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    review_text: Mapped[str] = mapped_column(Text, nullable=False)
+    review_stars: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+    t_dat: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    cluster_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cluster_label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Relaciones
+    article: Mapped["Article"] = relationship("Article")
+
+    __table_args__ = (
+        Index('idx_review_article_id', 'article_id'),
+        Index('idx_review_stars', 'review_stars'),
+        Index('idx_review_cluster_id', 'cluster_id'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Review(id={self.id}, article_id={self.article_id}, stars={self.review_stars})>"
+
+
 class OrderItem(Base):
     """Modelo para items de una orden (snapshot del producto al momento de compra)."""
     __tablename__ = "order_items"

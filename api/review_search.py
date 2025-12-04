@@ -1,6 +1,7 @@
 
 import os
 import logging
+from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 import faiss
@@ -13,6 +14,94 @@ from database.models import Article, Transaction
 from text.embeddings import EmbeddingModel
 
 logger = logging.getLogger(__name__)
+
+# MLflow configuration for artifact download
+MLFLOW_EXPERIMENT_NAME = "review-search-artifacts"
+MLFLOW_RUN_NAME = "review-artifacts-v1"
+
+
+def _download_artifacts_from_mlflow(local_dir: str, artifact_files: List[str]) -> bool:
+    """
+    Download review artifacts from MLflow if not present locally.
+
+    Args:
+        local_dir: Local directory to store artifacts
+        artifact_files: List of artifact filenames to download
+
+    Returns:
+        True if all artifacts are available, False otherwise
+    """
+    local_path = Path(local_dir)
+    local_path.mkdir(parents=True, exist_ok=True)
+
+    # Check if all files already exist locally
+    all_exist = all((local_path / f).exists() for f in artifact_files)
+    if all_exist:
+        logger.info(f"All review artifacts found locally in {local_dir}")
+        return True
+
+    # Try to download from MLflow
+    try:
+        import mlflow
+        from mlflow.tracking import MlflowClient
+        from dotenv import load_dotenv
+
+        load_dotenv()
+
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+        if not tracking_uri:
+            logger.warning("MLFLOW_TRACKING_URI not set, cannot download artifacts")
+            return False
+
+        mlflow.set_tracking_uri(tracking_uri)
+        client = MlflowClient(tracking_uri=tracking_uri)
+
+        # Find the experiment and run
+        experiment = client.get_experiment_by_name(MLFLOW_EXPERIMENT_NAME)
+        if experiment is None:
+            logger.warning(f"MLflow experiment '{MLFLOW_EXPERIMENT_NAME}' not found")
+            return False
+
+        runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string=f"tags.mlflow.runName = '{MLFLOW_RUN_NAME}'",
+            max_results=1,
+        )
+
+        if not runs:
+            logger.warning(f"MLflow run '{MLFLOW_RUN_NAME}' not found")
+            return False
+
+        run_id = runs[0].info.run_id
+        logger.info(f"Downloading review artifacts from MLflow run {run_id}...")
+
+        # Download each artifact
+        for filename in artifact_files:
+            local_file = local_path / filename
+            if local_file.exists():
+                logger.info(f"  {filename} already exists locally, skipping")
+                continue
+
+            logger.info(f"  Downloading {filename}...")
+            try:
+                mlflow.artifacts.download_artifacts(
+                    run_id=run_id,
+                    artifact_path=filename,
+                    dst_path=str(local_path),
+                )
+            except Exception as e:
+                logger.error(f"  Failed to download {filename}: {e}")
+                return False
+
+        logger.info("Review artifacts downloaded successfully from MLflow")
+        return True
+
+    except ImportError:
+        logger.warning("MLflow not installed, cannot download artifacts")
+        return False
+    except Exception as e:
+        logger.warning(f"Failed to download artifacts from MLflow: {e}")
+        return False
 
 
 def _build_images(article_id: int) -> List[str]:
@@ -51,7 +140,18 @@ class ReviewSearchEngine:
         df_file: str = "df_with_clusters_qwen2.pk1",
         index_file: str = "faiss_reviews_qwen2.index",
         model_name: str = "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
+        use_mlflow: bool = True,
     ):
+        self.artifacts_dir = artifacts_dir
+        self.emb_file = emb_file
+        self.df_file = df_file
+        self.index_file = index_file
+
+        # Try to download artifacts from MLflow if enabled and not present locally
+        if use_mlflow:
+            artifact_files = [emb_file, df_file, index_file]
+            _download_artifacts_from_mlflow(artifacts_dir, artifact_files)
+
         self.emb_path = os.path.join(artifacts_dir, emb_file)
         self.df_path = os.path.join(artifacts_dir, df_file)
         self.index_path = os.path.join(artifacts_dir, index_file)

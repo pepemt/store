@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, func, desc
 from database.lib import Database
-from database.models import Article, Transaction
+from database.models import Article, Transaction, Review
 
 router = APIRouter()
 
@@ -442,11 +442,47 @@ async def get_new_arrivals(
 
 async def _fetch_featured_reviews_from_db(limit: int) -> List[FeaturedReview]:
     """
-    Obtiene reviews destacados de la BD (query costosa).
+    Obtiene reviews destacados de la BD.
+    Usa reviews reales con alta puntuación (4-5 estrellas).
     Solo se llama cuando el caché está vacío o expirado.
     """
+    # Nombres para generar reviewers anónimos de manera consistente
+    reviewer_names = [
+        "María G.", "Carlos L.", "Ana M.", "Pedro S.", "Laura R.",
+        "Juan H.", "Sofia D.", "Miguel T.", "Elena R.", "David M.",
+        "Carmen J.", "Pablo A.", "Isabel F.", "Antonio V.", "Rosa P.",
+    ]
+
     async with Database.get_session() as session:
-        # Obtener productos populares
+        # Primero intentar obtener reviews reales de la tabla Review
+        try:
+            review_query = (
+                select(Review, Article)
+                .join(Article, Review.article_id == Article.article_id)
+                .where(Review.review_stars >= 4)
+                .order_by(desc(Review.review_stars), func.random())
+                .limit(limit)
+            )
+            result = await session.execute(review_query)
+            rows = result.all()
+
+            if rows:
+                reviews = []
+                for i, (review, article) in enumerate(rows):
+                    reviews.append(FeaturedReview(
+                        product_id=article.article_id,
+                        product_name=article.prod_name,
+                        product_image=_build_image_url(article.article_id),
+                        reviewer_name=reviewer_names[review.id % len(reviewer_names)],
+                        review_text=review.review_text,
+                        rating=float(review.review_stars),
+                    ))
+                return reviews
+        except Exception:
+            # Si falla (tabla no existe aún), usar fallback
+            pass
+
+        # Fallback: generar reviews basados en productos populares
         sales_count_col = func.count(Transaction.id).label('sales_count')
         q = (
             select(Article, sales_count_col)
@@ -458,14 +494,6 @@ async def _fetch_featured_reviews_from_db(limit: int) -> List[FeaturedReview]:
 
         result = await session.execute(q)
         rows = result.fetchall()
-
-        # Datos ficticios para testimonios
-        reviewer_names = [
-            "María García", "Carlos López", "Ana Martínez",
-            "Pedro Sánchez", "Laura Rodríguez", "Juan Hernández",
-            "Sofia Díaz", "Miguel Torres", "Elena Ruiz",
-            "David Moreno", "Carmen Jiménez", "Pablo Álvarez"
-        ]
 
         review_templates = [
             "Excelente calidad, superó mis expectativas. El {product} es exactamente lo que buscaba.",
