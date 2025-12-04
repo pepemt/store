@@ -172,7 +172,7 @@ def _build_image_url(article_id: int) -> str:
     Construye la URL de imagen usando el proxy del backend.
     NO verifica existencia en S3 para evitar latencia.
     """
-    backend_url = os.getenv("FASTAPI_PUBLIC_URL", "")
+    backend_url = (os.getenv("FASTAPI_PUBLIC_URL") or "").rstrip("/")
     padded_id = str(article_id).zfill(10)
     return f"{backend_url}/api/v1/images/products/{padded_id}.jpg"
 

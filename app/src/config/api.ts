@@ -3,7 +3,8 @@
 const getBaseUrl = () => {
   // If VITE_API_BASE_URL is explicitly set, use it
   if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL
+    // Remove trailing slash to avoid double slashes in URL concatenation
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '')
   }
 
   // Use relative URLs (works with same origin and proxies)

@@ -98,7 +98,7 @@ def _build_images(article_id: int) -> List[str]:
     try:
         # Obtener la URL base del backend desde variables de entorno
         import os
-        backend_url = os.getenv("FASTAPI_PUBLIC_URL")
+        backend_url = (os.getenv("FASTAPI_PUBLIC_URL") or "").rstrip("/")
 
         # Verificar si la imagen existe en S3
         for key in _candidate_image_keys(article_id):

@@ -60,7 +60,7 @@ def _build_images(article_id: int) -> List[str]:
     Generate image URL for a product.
     Returns URL to backend proxy endpoint which handles S3 lookup and fallbacks.
     """
-    backend_url = os.getenv("FASTAPI_PUBLIC_URL", "http://localhost:8000")
+    backend_url = (os.getenv("FASTAPI_PUBLIC_URL") or "http://localhost:8000").rstrip("/")
     # IDs in S3 are padded to 10 digits (e.g., 0447795001)
     padded_id = str(article_id).zfill(10)
     # Always return jpg - the image endpoint will handle if it doesn't exist

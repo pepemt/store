@@ -115,7 +115,7 @@ def _download_artifacts_from_mlflow(local_dir: str, artifact_files: List[str]) -
 
 def _build_images(article_id: int) -> List[str]:
     """Crea URL de imagen usando el proxy del backend."""
-    backend_url = os.getenv("FASTAPI_PUBLIC_URL", "http://localhost:8000")
+    backend_url = (os.getenv("FASTAPI_PUBLIC_URL") or "http://localhost:8000").rstrip("/")
     padded_id = str(article_id).zfill(10)
     return [f"{backend_url}/api/v1/images/products/{padded_id}.jpg"]
 
