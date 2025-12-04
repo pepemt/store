@@ -72,7 +72,7 @@ class StripeService:
         if not cls._initialized:
             cls.initialize()
 
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
         if not success_url:
             success_url = f"{frontend_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
