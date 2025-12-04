@@ -1,0 +1,175 @@
+<mxfile host="65bd71144e">
+    <diagram name="OCI Infrastructure" id="oci-infrastructure">
+        <mxGraphModel dx="252" dy="720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="internet" value="Internet" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="200" width="120" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="tailscale" value="Tailscale&#xa;VPN Network" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="380" width="120" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="oci-tenancy" value="OCI Tenancy" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1;startSize=30;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="40" width="1160" height="640" as="geometry"/>
+                </mxCell>
+                <mxCell id="vcn" value="VCN - main-vcn (10.0.0.0/16)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;startSize=28;" parent="oci-tenancy" vertex="1">
+                    <mxGeometry x="20" y="50" width="720" height="400" as="geometry"/>
+                </mxCell>
+                <mxCell id="igw" value="Internet&#xa;Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" parent="vcn" vertex="1">
+                    <mxGeometry x="20" y="40" width="80" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="nat" value="NAT&#xa;Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" parent="vcn" vertex="1">
+                    <mxGeometry x="20" y="110" width="80" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="sgw" value="Service&#xa;Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" parent="vcn" vertex="1">
+                    <mxGeometry x="20" y="180" width="80" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="public-subnet" value="Public Subnet (10.0.1.0/24)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;startSize=24;" parent="vcn" vertex="1">
+                    <mxGeometry x="130" y="40" width="260" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="bastion" value="Bastion Host&#xa;VM.Standard.A1.Flex&#xa;8 OCPUs / 48GB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" parent="public-subnet" vertex="1">
+                    <mxGeometry x="20" y="40" width="140" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="bastion-tailscale" value="Tailscale" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="public-subnet" vertex="1">
+                    <mxGeometry x="20" y="130" width="65" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="bastion-docker" value="Docker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="public-subnet" vertex="1">
+                    <mxGeometry x="95" y="130" width="65" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="bastion-psql" value="psql client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="public-subnet" vertex="1">
+                    <mxGeometry x="20" y="170" width="65" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="app-container" value="Application Container&#xa;(FastAPI + React)&#xa;Port 8000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;" parent="public-subnet" vertex="1">
+                    <mxGeometry x="20" y="220" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="private-subnet" value="Private Subnet (10.0.2.0/24)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;startSize=24;" parent="vcn" vertex="1">
+                    <mxGeometry x="420" y="40" width="280" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="postgresql" value="PostgreSQL&#xa;DB System&#xa;OCI Optimized" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1;" parent="private-subnet" vertex="1">
+                    <mxGeometry x="30" y="50" width="100" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="adb" value="Autonomous DB&#xa;23ai&#xa;Vector Search" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1;" parent="private-subnet" vertex="1">
+                    <mxGeometry x="150" y="50" width="100" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg-details" value="Port: 5432&#xa;User: admin" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" parent="private-subnet" vertex="1">
+                    <mxGeometry x="30" y="140" width="100" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="adb-details" value="mTLS Required&#xa;Wallet Auth" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" parent="private-subnet" vertex="1">
+                    <mxGeometry x="150" y="140" width="100" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="object-storage" value="Object Storage&#xa;(S3-Compatible)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" parent="oci-tenancy" vertex="1">
+                    <mxGeometry x="800" y="80" width="140" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="bucket-store" value="store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="oci-tenancy" vertex="1">
+                    <mxGeometry x="800" y="175" width="60" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="bucket-mlflow" value="mlflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="oci-tenancy" vertex="1">
+                    <mxGeometry x="880" y="175" width="60" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="genai" value="OCI Generative AI&#xa;Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;" parent="oci-tenancy" vertex="1">
+                    <mxGeometry x="800" y="240" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="security-info" value="Security:&#xa;- Private Endpoint DBs&#xa;- mTLS for ADB&#xa;- NSG Rules&#xa;- No Public Access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;spacingLeft=5;" parent="oci-tenancy" vertex="1">
+                    <mxGeometry x="800" y="360" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="conn-internet-igw" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6c8ebf;strokeWidth=2;endArrow=classic;endFill=1;" parent="1" source="internet" target="igw" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="220" y="130" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-internet-igw-label" value="SSH (22)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" parent="conn-internet-igw" vertex="1" connectable="0">
+                    <mxGeometry x="-0.2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-igw-bastion" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=2;endArrow=classic;endFill=1;" parent="1" source="igw" target="bastion" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="conn-tailscale-bastion" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673a6;strokeWidth=2;endArrow=classic;endFill=1;dashed=1;" parent="1" source="tailscale" target="bastion-tailscale" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="conn-tailscale-label" value="VPN Tunnel" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" parent="conn-tailscale-bastion" vertex="1" connectable="0">
+                    <mxGeometry x="-0.3" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-bastion-pg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d79b00;strokeWidth=2;endArrow=classic;endFill=1;" parent="1" source="bastion" target="postgresql" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="conn-bastion-pg-label" value="5432" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" parent="conn-bastion-pg" vertex="1" connectable="0">
+                    <mxGeometry x="-0.2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-bastion-adb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d79b00;strokeWidth=2;endArrow=classic;endFill=1;" parent="1" source="bastion" target="adb" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="conn-bastion-adb-label" value="1522 (mTLS)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" parent="conn-bastion-adb" vertex="1" connectable="0">
+                    <mxGeometry x="-0.2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-sgw-storage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673a6;strokeWidth=2;endArrow=classic;endFill=1;" parent="1" source="sgw" target="object-storage" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="260" y="270"/>
+                            <mxPoint x="780" y="270"/>
+                            <mxPoint x="780" y="160"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-sgw-storage-label" value="OCI Services" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" parent="conn-sgw-storage" vertex="1" connectable="0">
+                    <mxGeometry x="0.3" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-app-genai" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b85450;strokeWidth=2;endArrow=classic;endFill=1;dashed=1;" parent="1" source="app-container" target="genai" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="500" y="360"/>
+                            <mxPoint x="780" y="360"/>
+                            <mxPoint x="780" y="310"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-app-genai-label" value="API Calls" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" parent="conn-app-genai" vertex="1" connectable="0">
+                    <mxGeometry x="0.3" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-nat-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;endFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="nat" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="160" y="175" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn-nat-label" value="Outbound" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=8;" parent="conn-nat-out" vertex="1" connectable="0">
+                    <mxGeometry x="0.2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="legend" value="Legend" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1;startSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="1170" y="700" width="190" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-network" value="Networking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" parent="legend" vertex="1">
+                    <mxGeometry x="10" y="30" width="70" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-compute" value="Compute" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" parent="legend" vertex="1">
+                    <mxGeometry x="100" y="30" width="70" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-database" value="Database" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;" parent="legend" vertex="1">
+                    <mxGeometry x="10" y="60" width="70" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-storage" value="Storage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" parent="legend" vertex="1">
+                    <mxGeometry x="100" y="60" width="70" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-ai" value="AI Services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" parent="legend" vertex="1">
+                    <mxGeometry x="10" y="90" width="70" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-vpn" value="VPN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" parent="legend" vertex="1">
+                    <mxGeometry x="100" y="90" width="70" height="20" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
