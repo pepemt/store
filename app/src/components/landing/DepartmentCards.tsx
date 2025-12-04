@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { useDepartmentsWithImages } from '../../hooks/useLandingData'
 import { fadeInUp } from './AnimatedSection'
+import { ImageWithFallback } from '../ui/image-with-fallback'
 
 interface DepartmentCardProps {
   department: {
@@ -17,7 +18,6 @@ interface DepartmentCardProps {
 
 function DepartmentCard({ department, index }: DepartmentCardProps) {
   const isEven = index % 2 === 0
-  const fallbackImage = `https://picsum.photos/seed/${department.slug}/800/600`
 
   return (
     <motion.div
@@ -37,16 +37,10 @@ function DepartmentCard({ department, index }: DepartmentCardProps) {
           whileHover={{ scale: 1.02 }}
           transition={{ duration: 0.3 }}
         >
-          <img
+          <ImageWithFallback
             src={department.image_url}
             alt={department.name}
             className="h-full w-full object-cover"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              if (target.src !== fallbackImage) {
-                target.src = fallbackImage
-              }
-            }}
           />
         </motion.div>
 

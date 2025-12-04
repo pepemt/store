@@ -6,7 +6,7 @@ export const PRODUCTS: Product[] = [
     title: 'Auriculares inalámbricos X1',
     description: 'Auriculares Bluetooth con cancelación de ruido, batería 30h y micrófono integrado.',
     price: 59.99,
-    images: ['https://picsum.photos/seed/p1/800/600'],
+    images: [],
     category: 'Electrónica',
     stock: 25,
     rating: 4.5
@@ -16,7 +16,7 @@ export const PRODUCTS: Product[] = [
     title: 'Smartwatch Active 2',
     description: 'Reloj inteligente con monitor de ritmo cardiaco, GPS y resistencia al agua 5ATM.',
     price: 129.99,
-    images: ['https://picsum.photos/seed/p2/800/600'],
+    images: [],
     category: 'Wearables',
     stock: 12,
     rating: 4.2
@@ -26,7 +26,7 @@ export const PRODUCTS: Product[] = [
     title: 'Cafetera Espresso Compact',
     description: 'Cafetera espresso compacta, 15 bares, depósito desmontable y función vapor.',
     price: 89.5,
-    images: ['https://picsum.photos/seed/p3/800/600'],
+    images: [],
     category: 'Hogar',
     stock: 8,
     rating: 4.6
@@ -36,7 +36,7 @@ export const PRODUCTS: Product[] = [
     title: 'Mochila urbana 20L',
     description: 'Mochila resistente al agua, múltiples compartimentos y puerto USB.',
     price: 39.0,
-    images: ['https://picsum.photos/seed/p4/800/600'],
+    images: [],
     category: 'Accesorios',
     stock: 40,
     rating: 4.1
@@ -46,7 +46,7 @@ export const PRODUCTS: Product[] = [
     title: 'Silla ergonómica OfficePro',
     description: 'Silla con soporte lumbar, ajustes de altura y reposabrazos 4D.',
     price: 199.99,
-    images: ['https://picsum.photos/seed/p5/800/600'],
+    images: [],
     category: 'Muebles',
     stock: 5,
     rating: 4.7
@@ -56,7 +56,7 @@ export const PRODUCTS: Product[] = [
     title: 'Teclado mecánico K-100',
     description: 'Teclado mecánico RGB, switches lineales y conexión USB-C.',
     price: 74.25,
-    images: ['https://picsum.photos/seed/p6/800/600'],
+    images: [],
     category: 'Electrónica',
     stock: 30,
     rating: 4.3
@@ -66,7 +66,7 @@ export const PRODUCTS: Product[] = [
     title: 'Juego de sábanas premium (King)',
     description: 'Sábanas 100% algodón peinado, 300 hilos, color gris claro.',
     price: 59.0,
-    images: ['https://picsum.photos/seed/p7/800/600'],
+    images: [],
     category: 'Hogar',
     stock: 18,
     rating: 4.4
@@ -76,7 +76,7 @@ export const PRODUCTS: Product[] = [
     title: 'Auriculares gaming ProGamer',
     description: 'Auriculares con micrófono retráctil, sonido envolvente y almohadillas confort.',
     price: 89.9,
-    images: ['https://picsum.photos/seed/p8/800/600'],
+    images: [],
     category: 'Gaming',
     stock: 14,
     rating: 4.0

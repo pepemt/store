@@ -34,9 +34,9 @@ class CartSummaryDTO(BaseModel):
 
 # ---------- helpers ----------
 
-def _image_url(article_id: int) -> str:
-    # Cambia por S3Service.get_image_url(...) si ya lo tienes
-    return f"https://picsum.photos/seed/{article_id}/400/300"
+def _image_url(article_id: int) -> str | None:
+    # No hay fallback - el frontend mostrará un placeholder
+    return None
 
 
 def _mock_price(article_id: int) -> float:

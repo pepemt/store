@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from 'react'
 import { Star, ChevronLeft, ChevronRight, Quote } from 'lucide-react'
 import { useFeaturedReviews } from '../../hooks/useLandingData'
 import { Button } from '../ui/button'
+import { SimpleImageWithFallback } from '../ui/image-with-fallback'
 
 export function Testimonials() {
   const ref = useRef(null)
@@ -81,17 +82,10 @@ export function Testimonials() {
               <div className="flex flex-col md:flex-row gap-6 items-center">
                 {/* Product image */}
                 <div className="w-24 h-24 md:w-32 md:h-32 rounded-xl overflow-hidden shadow-md flex-shrink-0">
-                  <img
+                  <SimpleImageWithFallback
                     src={currentReview.product_image}
                     alt={currentReview.product_name}
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      const fallback = `https://picsum.photos/seed/${currentReview.product_id}/400/400`
-                      if (target.src !== fallback) {
-                        target.src = fallback
-                      }
-                    }}
                   />
                 </div>
 

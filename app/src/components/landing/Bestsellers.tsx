@@ -7,6 +7,7 @@ import { staggerContainer, fadeInUp } from './AnimatedSection'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { ImageWithFallback } from '../ui/image-with-fallback'
 import type { LandingProduct } from '../../services/landingService'
 
 interface ProductCardProps {
@@ -15,8 +16,7 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, index }: ProductCardProps) {
-  const image = product.images?.[0] || `https://picsum.photos/seed/${product.id}/800/600`
-  const fallbackImage = `https://picsum.photos/seed/${product.id}/800/600`
+  const image = product.images?.[0]
 
   return (
     <motion.div variants={fadeInUp}>
@@ -27,18 +27,12 @@ function ProductCard({ product, index }: ProductCardProps) {
         >
           <Card className="overflow-hidden border-none shadow-md">
             <div className="relative aspect-square overflow-hidden bg-gray-100">
-              <motion.img
+              <ImageWithFallback
                 src={image}
                 alt={product.name}
                 className="h-full w-full object-cover"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.4 }}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  if (target.src !== fallbackImage) {
-                    target.src = fallbackImage
-                  }
-                }}
               />
               {index < 3 && (
                 <Badge

@@ -8,6 +8,7 @@ import { getProductImageUrl, getFallbackImageUrl } from '../config/api'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
+import { ImageWithFallback } from '../components/ui/image-with-fallback'
 
 import {
   CategoryGrid,
@@ -274,7 +275,6 @@ function PersonalizedRecommendations() {
   const ProductCard = ({ p }: { p: Product }) => {
     const name = p.name || p.title || 'Producto'
     const image = p.images?.[0] || getProductImageUrl(String(p.id)) || getFallbackImageUrl()
-    const fallbackImage = `https://picsum.photos/seed/${p.id}/800/600`
     return (
       <Link to={`/product/${p.id}`} className="group">
         <motion.div
@@ -283,18 +283,12 @@ function PersonalizedRecommendations() {
         >
           <Card className="overflow-hidden transition-shadow hover:shadow-lg">
             <div className="relative aspect-square overflow-hidden bg-gray-100">
-              <motion.img
+              <ImageWithFallback
                 src={image}
                 alt={name}
                 className="h-full w-full object-cover"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.4 }}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  if (target.src !== fallbackImage) {
-                    target.src = fallbackImage
-                  }
-                }}
               />
               {p.rating && (
                 <Badge className="absolute right-2 top-2 bg-white text-gray-900 hover:bg-white shadow-sm">

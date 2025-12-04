@@ -47,6 +47,7 @@ docker-compose*.yaml
 
 # Environment files
 .env
+.env.prod
 .env.local
 .env.*.local
 .env.sample
@@ -69,7 +70,17 @@ ssh-keys/
 
 # Data and temp files (excepto wallet de Oracle)
 .data/raw/
+.data/reviews/
 tmp/
+
+# ML artifacts and models (not needed in runtime)
+**/mlruns/
+**/mlartifacts/
+ML/src/models/
+
+# Cache directories
+**/.cache/
+**/cache/
 
 # Frontend node_modules se manejará en el stage específico
 # pero lo ignoramos en el contexto raíz

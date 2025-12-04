@@ -2,7 +2,6 @@
 # Stage 1: Build Frontend (React + Vite)
 # ============================================================================
 FROM node:20-alpine AS frontend-builder
-
 WORKDIR /build/app
 
 # Copiar archivos de dependencias para aprovechar cache de Docker
@@ -31,6 +30,10 @@ RUN printf '%s\n' \
     "  }," \
     "})" \
     > vite.config.ts
+
+# Variable de entorno para la API en producción
+ARG VITE_API_BASE_URL=https://bastion-vnic.taila0f54f.ts.net
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 # Hacer build del frontend (output: ./dist/)
 RUN npm run build

@@ -3,6 +3,7 @@ import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useCategoriesWithImages } from '../../hooks/useLandingData'
 import { staggerContainer, fadeInUp } from './AnimatedSection'
+import { ImageWithFallback } from '../ui/image-with-fallback'
 
 interface CategoryCardProps {
   category: {
@@ -14,26 +15,18 @@ interface CategoryCardProps {
 }
 
 function CategoryCard({ category }: CategoryCardProps) {
-  const fallbackImage = `https://picsum.photos/seed/${category.slug}/800/600`
-
   return (
     <motion.div variants={fadeInUp}>
       <Link
         to={`/products?category=${encodeURIComponent(category.name)}`}
         className="group relative block aspect-square overflow-hidden rounded-2xl shadow-md"
       >
-        <motion.img
+        <ImageWithFallback
           src={category.image_url}
           alt={category.name}
           className="h-full w-full object-cover"
           whileHover={{ scale: 1.1 }}
           transition={{ duration: 0.4 }}
-          onError={(e) => {
-            const target = e.target as HTMLImageElement
-            if (target.src !== fallbackImage) {
-              target.src = fallbackImage
-            }
-          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-4 transform transition-transform group-hover:translate-y-[-4px]">

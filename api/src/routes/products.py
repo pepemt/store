@@ -75,9 +75,9 @@ class ProductIdListResponse(BaseModel):
 
 # --------- HELPERS ---------
 
-def _fallback_image(article_id: int) -> str:
-    # Fallback libre si no hay S3 o no existe la imagen
-    return f"https://picsum.photos/seed/{article_id}/800/600"
+def _fallback_image(article_id: int) -> str | None:
+    # No hay fallback - el frontend mostrará un placeholder
+    return None
 
 
 def _candidate_image_keys(article_id: int) -> List[str]:
