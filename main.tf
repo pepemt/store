@@ -345,8 +345,8 @@ resource "oci_core_instance" "bastion" {
   }
 
   shape_config {
-    ocpus         = 1
-    memory_in_gbs = 6
+    ocpus         = 8
+    memory_in_gbs = 48
   }
 
   metadata = {
