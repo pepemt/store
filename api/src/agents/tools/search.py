@@ -22,10 +22,15 @@ parent_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_path not in sys.path:
     sys.path.insert(0, parent_path)
 
+# Add api/ directory to path for review_search import
+api_path = os.path.dirname(os.path.dirname(parent_path))  # .../api
+if api_path not in sys.path:
+    sys.path.insert(0, api_path)
+
 from state import ProductDict, SearchResult, BudgetContext, AgentState
 from llm_config import llm
 from metadata_cache import get_metadata_cache
-from progress_utils import emit_parallel_start, emit_parallel_end
+from progress_utils import emit_progress
 
 # Import budget module directly using importlib to avoid circular import
 budget_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "budget.py")
@@ -444,6 +449,32 @@ class GenericSearchTool:
         search_time_ms = 0
         discrimination_time_ms = 0
 
+        # 0. Auto-detect need-based queries and enable review search
+        # Keywords that indicate subjective needs (not literal product descriptions)
+        NEED_KEYWORDS = [
+            # Spanish
+            "necesito", "busco algo", "quiero algo", "para una", "para un",
+            "cómodo", "cómoda", "elegante", "premium", "calidad", "duradero",
+            "fresco", "fresca", "abrigador", "formal", "casual",
+            "fiesta", "gala", "evento", "trabajo", "oficina", "diario",
+            "viaje", "caminar", "correr", "ejercicio", "yoga",
+            "verano", "invierno", "lluvia", "calor", "frío",
+            # English
+            "i need", "looking for", "something for", "comfortable",
+            "elegant", "premium", "quality", "durable", "breathable",
+            "party", "event", "work", "office", "daily", "travel",
+            "walking", "running", "exercise", "summer", "winter",
+        ]
+
+        # Check if query expresses a need
+        if query and not search_reviews:
+            query_lower = query.lower()
+            detected_need = any(kw in query_lower for kw in NEED_KEYWORDS)
+            if detected_need:
+                search_reviews = True
+                review_need = query  # Use original query for review search
+                logger.info(f"  Auto-detected need-based query, enabling review search")
+
         # 0. Refine query with LLM (translate to English, normalize)
         refined_query = query
         if query and not skip_refinement:
@@ -463,14 +494,17 @@ class GenericSearchTool:
 
         # 1. Semantic search (V1, V2, V3 or hybrid)
         if refined_query and any(s in strategies for s in ["v1", "v2", "v3", "hybrid"]):
-            # Emit parallel start event (like the original system)
+            # Emit search start event
             if state:
-                await emit_parallel_start(
+                from state import StepType, StepStatus
+                await emit_progress(
                     state=state,
-                    parallel_group="search_hybrid",
+                    step_type=StepType.SEARCH_PARALLEL,
+                    status=StepStatus.STARTED,
                     title="Búsqueda híbrida",
                     description="Ejecutando 3 estrategias de búsqueda en paralelo...",
-                    steps=["V1: Término por término", "V2: Query completa", "V3: Términos distintivos"]
+                    is_parallel=True,
+                    parallel_group="search_hybrid"
                 )
 
             search_start = time.time()
@@ -479,13 +513,16 @@ class GenericSearchTool:
             )
             search_time_ms = int((time.time() - search_start) * 1000)
 
-            # Emit parallel end event
+            # Emit search completed event
             if state:
-                await emit_parallel_end(
+                await emit_progress(
                     state=state,
-                    parallel_group="search_hybrid",
+                    step_type=StepType.SEARCH_PARALLEL,
+                    status=StepStatus.COMPLETED,
                     title="Búsqueda completada",
                     description=f"V1: {len(v1_products)}, V2: {len(v2_products)}, V3: {len(v3_products)} productos",
+                    is_parallel=True,
+                    parallel_group="search_hybrid",
                     duration_ms=search_time_ms
                 )
 
@@ -507,12 +544,33 @@ class GenericSearchTool:
             strategies_used.append("filters")
             logger.info(f"  Filter search returned {len(filter_results)} products")
 
-        # 4. Review-based search
+        # 4. Review-based search (when user expresses a need/purpose)
+        review_results = []
         if search_reviews and review_need:
+            # Emit progress event for review search
+            if state:
+                from state import StepType, StepStatus
+                await emit_progress(
+                    state=state,
+                    step_type=StepType.REVIEW_SEARCH,
+                    status=StepStatus.STARTED,
+                    title="Buscando por opiniones",
+                    description="Analizando reviews de usuarios para encontrar productos...",
+                )
+
             review_results = await self._run_review_search(review_need, limit)
             all_products.extend(review_results)
             strategies_used.append("reviews")
             logger.info(f"  Review search returned {len(review_results)} products")
+
+            if state:
+                await emit_progress(
+                    state=state,
+                    step_type=StepType.REVIEW_SEARCH,
+                    status=StepStatus.COMPLETED,
+                    title="Opiniones analizadas",
+                    description=f"Encontrados {len(review_results)} productos basados en opiniones",
+                )
 
         # 5. Recommendations (if requested or as fallback)
         if include_recommendations or (not all_products and not query):
@@ -577,6 +635,18 @@ class GenericSearchTool:
             discriminated_products = self._apply_filters(discriminated_products, filters)
             logger.info(f"  After additional filters: {len(discriminated_products)} products")
 
+        # 9.5. Add review products back (they were not in discrimination)
+        # Review products should be prioritized and included in final results
+        if review_results:
+            # Get IDs already in discriminated_products
+            discriminated_ids = {p.get('id') for p in discriminated_products}
+            # Add review products that are not duplicates
+            for p in review_results:
+                if p.get('id') not in discriminated_ids:
+                    discriminated_products.insert(0, p)  # Add at beginning (priority)
+                    discriminated_ids.add(p.get('id'))
+            logger.info(f"  After adding review products: {len(discriminated_products)} products")
+
         # 10. Final limit
         final_products = discriminated_products[:limit]
 
@@ -596,9 +666,12 @@ class GenericSearchTool:
         v1_final = sum(1 for p in v1_products if p.get('id') in final_ids) if v1_products else 0
         v2_final = sum(1 for p in v2_products if p.get('id') in final_ids) if v2_products else 0
         v3_final = sum(1 for p in v3_products if p.get('id') in final_ids) if v3_products else 0
+        review_final = sum(1 for p in review_results if p.get('id') in final_ids) if review_results else 0
 
         # Determine search method
         search_method = "hybrid" if ("semantic" in strategies_used) else "keyword"
+        if "reviews" in strategies_used:
+            search_method = "hybrid+reviews"
         if not strategies_used:
             search_method = "none"
 
@@ -611,6 +684,7 @@ class GenericSearchTool:
             v1_count=v1_final,
             v2_count=v2_final,
             v3_count=v3_final,
+            review_count=review_final,
             distinctive_terms=distinctive_terms if distinctive_terms else [],
             refine_time_ms=refine_time_ms,
             search_time_ms=search_time_ms,
@@ -762,19 +836,20 @@ class GenericSearchTool:
             if self._review_engine is None:
                 try:
                     from review_search import ReviewSearchEngine
-                    self._review_engine = ReviewSearchEngine()
-                except ImportError:
-                    logger.warning("ReviewSearchEngine not available")
+                    self._review_engine = ReviewSearchEngine(artifacts_dir=".data/reviews")
+                except ImportError as e:
+                    logger.warning(f"ReviewSearchEngine not available: {e}")
                     return []
 
             review_results = self._review_engine.search_reviews(review_need, top_k=50)
-            aggregated = self._review_engine.aggregate_products(review_results, top_n=limit)
-            products = self._review_engine.get_products(aggregated)
+            aggregated = self._review_engine.aggregate_products(review_results)
+            products = await self._review_engine.get_products(aggregated, limit=limit)
 
             return products
 
         except Exception as e:
-            logger.error(f"Review search failed: {e}")
+            import traceback
+            logger.error(f"Review search failed: {e}\n{traceback.format_exc()}")
             return []
 
     # Category synonyms for flexible matching

@@ -76,7 +76,13 @@ TU ROL:
 - Adaptarte dinámicamente según los resultados
 
 HERRAMIENTAS DISPONIBLES:
-1. search(query, filters, budget_usd, limit) - Búsqueda unificada de productos
+1. search(query, filters, budget_usd, limit, search_reviews, review_need) - Búsqueda unificada de productos
+   - search_reviews=true + review_need="texto" para buscar por NECESIDAD/PROPÓSITO basado en reviews de usuarios
+   - Usa search_reviews cuando el usuario expresa una NECESIDAD subjetiva, no una descripción literal
+   - Ejemplos de cuándo usar search_reviews=true:
+     * "necesito algo elegante para una fiesta" → search_reviews=true, review_need="elegant formal party gala"
+     * "busco ropa cómoda para estar en casa" → search_reviews=true, review_need="comfortable home casual"
+     * "quiero algo que se vea premium" → search_reviews=true, review_need="premium luxury high quality"
 2. analyze_images(images, context, type) - Análisis contextual de imágenes
 3. compare(products, criteria) - Comparar N productos en M criterios
 4. budget_calc(products) - Calcular desglose de presupuesto
@@ -96,6 +102,17 @@ EJEMPLOS DE TRADUCCIÓN:
 - "zapatos deportivos blancos" → "sneakers shoes sports white"
 
 PRINCIPIOS CLAVE:
+- Para NECESIDADES/PROPÓSITOS (MUY IMPORTANTE):
+  * Cuando el usuario expresa QUÉ QUIERE LOGRAR o CÓMO QUIERE SENTIRSE, usa search_reviews=true
+  * NO es lo mismo buscar "vestido negro" (descripción literal) que "algo elegante para fiesta" (necesidad)
+  * Ejemplos de NECESIDADES (usar search_reviews=true):
+    - "necesito algo elegante para una gala" → {"tool": "search", "params": {"search_reviews": true, "review_need": "elegant formal gala event", "query": "formal dress suit men women"}}
+    - "busco ropa cómoda para trabajar" → {"tool": "search", "params": {"search_reviews": true, "review_need": "comfortable work office", "query": "casual comfortable workwear"}}
+    - "quiero algo que se vea premium" → {"tool": "search", "params": {"search_reviews": true, "review_need": "premium luxury high quality", "query": "premium luxury clothing"}}
+  * Ejemplos de DESCRIPCIONES LITERALES (NO usar search_reviews):
+    - "busco un pantalón negro" → búsqueda normal
+    - "quiero una camisa azul" → búsqueda normal
+
 - Para IMÁGENES: TÚ decides qué extraer basado en la petición:
   * "busca algo similar" + imagen → extraer atributos para búsqueda (type="attributes")
   * "qué outfits puedo armar" + imagen → identificar items (type="outfit")
@@ -325,17 +342,24 @@ async def execute_tool(tool_name: str, params: Dict[str, Any], state: UnifiedAge
                 )
 
             if "discrimination" in result.get("strategies_used", []):
+                # Build description with review count if available
+                review_count = result.get('review_count', 0)
+                desc_parts = [f"V3:{result.get('v3_count', 0)}", f"V1:{result.get('v1_count', 0)}", f"V2:{result.get('v2_count', 0)}"]
+                if review_count > 0:
+                    desc_parts.append(f"Reviews:{review_count}")
+
                 await emit_progress(
                     state=state,
                     step_type=StepType.DISCRIMINATOR,
                     status=StepStatus.COMPLETED,
                     title="Productos seleccionados",
-                    description=f"V3:{result.get('v3_count', 0)} V1:{result.get('v1_count', 0)} V2:{result.get('v2_count', 0)}",
+                    description=" ".join(desc_parts),
                     details={
                         "distinctive_terms": result.get("distinctive_terms", []),
                         "v1_count": result.get("v1_count", 0),
                         "v2_count": result.get("v2_count", 0),
                         "v3_count": result.get("v3_count", 0),
+                        "review_count": review_count,
                     },
                     duration_ms=result.get("discrimination_time_ms", 0)  # REAL time
                 )
@@ -348,6 +372,7 @@ async def execute_tool(tool_name: str, params: Dict[str, Any], state: UnifiedAge
                 "v1_count": result.get("v1_count", 0),
                 "v2_count": result.get("v2_count", 0),
                 "v3_count": result.get("v3_count", 0),
+                "review_count": result.get("review_count", 0),
                 "refine_time_ms": result.get("refine_time_ms", 0),
                 "search_time_ms": result.get("search_time_ms", 0),
                 "discrimination_time_ms": result.get("discrimination_time_ms", 0),
@@ -875,11 +900,26 @@ NO uses formato de lista. Responde de forma natural y conversacional."""
 
     # If we have products, generate an expressive response with LLM
     if products:
+        # Separate products by source (reviews vs semantic search)
+        review_products = [p for p in products if p.get('from_reviews')]
+        semantic_products = [p for p in products if not p.get('from_reviews')]
+
         # Build product list for LLM context (show all products found)
-        products_text = "\n".join([
-            f"- {p.get('name', 'Producto')} (${p.get('price', 0):.2f}) - {p.get('category', '')} - {p.get('color', '')}"
-            for p in products[:15]  # Include more in context
-        ])
+        products_text = ""
+
+        if review_products:
+            review_text = "\n".join([
+                f"- {p.get('name', 'Producto')} (${p.get('price', 0):.2f}) - {p.get('category', '')} - Opinión: \"{p.get('evidence_review', '')[:100]}...\""
+                for p in review_products[:8]
+            ])
+            products_text += f"\n🗣️ BASADOS EN OPINIONES DE USUARIOS ({len(review_products)} productos):\n{review_text}"
+
+        if semantic_products:
+            semantic_text = "\n".join([
+                f"- {p.get('name', 'Producto')} (${p.get('price', 0):.2f}) - {p.get('category', '')} - {p.get('color', '')}"
+                for p in semantic_products[:8]
+            ])
+            products_text += f"\n\n🔍 POR BÚSQUEDA SEMÁNTICA ({len(semantic_products)} productos):\n{semantic_text}"
 
         # Check for image context
         image_context = ""
@@ -887,17 +927,28 @@ NO uses formato de lista. Responde de forma natural y conversacional."""
         if image_description:
             image_context = f"\nEl usuario también envió una imagen. La analizaste y viste: {image_description[:300]}\nBasándote en esta imagen, buscaste productos similares."
 
+        # Context about review-based results
+        review_context = ""
+        if review_products:
+            review_context = f"""
+IMPORTANTE SOBRE PRODUCTOS DE OPINIONES:
+- {len(review_products)} productos fueron encontrados basándose en opiniones de otros usuarios
+- Estos productos son recomendados porque otros clientes los describieron de forma similar a lo que busca el usuario
+- DEBES mencionar que estos productos vienen recomendados por opiniones de usuarios reales
+- Puedes citar brevemente alguna opinión relevante si es apropiado"""
+
         # Build expressive prompt (like the previous system)
         response_prompt = f"""Eres un asistente de compras amigable y entusiasta. El usuario preguntó: "{original_query}"
 {image_context}
 
-Encontré estos productos usando búsqueda semántica (ordenados por relevancia):
-{products_text}
+Encontré estos productos:{products_text}
+{review_context}
 
 IMPORTANTE: Responde en el MISMO IDIOMA que el usuario.
 - Si el usuario escribió en español, responde en español
 - Si el usuario escribió en inglés, responde en inglés
 - Si el usuario envió una imagen, reconoce que la viste y entendiste
+- Si hay productos basados en opiniones, MENCIONA que fueron recomendados por otros usuarios
 
 Proporciona una respuesta amigable y útil presentando estos productos. Sé conciso pero ENTUSIASTA.
 Menciona detalles clave como nombre, precio, categoría y color.
@@ -956,6 +1007,15 @@ NO uses formato de lista con viñetas, escribe de forma natural y conversacional
             "main_message": response_text,
             "products": products,
         }
+
+        # Add separated products for frontend display
+        if review_products:
+            structured_response["review_products"] = review_products
+            structured_response["review_count"] = len(review_products)
+
+        if semantic_products:
+            structured_response["semantic_products"] = semantic_products
+            structured_response["semantic_count"] = len(semantic_products)
 
         if step_results:
             structured_response["step_results"] = step_results

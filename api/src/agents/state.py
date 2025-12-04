@@ -242,6 +242,7 @@ class SearchResult(TypedDict):
     v1_count: NotRequired[int]       # Products from V1 term-by-term search
     v2_count: NotRequired[int]       # Products from V2 full query search
     v3_count: NotRequired[int]       # Products from V3 distinctive terms (PRIORITY)
+    review_count: NotRequired[int]   # Products from review-based search (user needs)
     distinctive_terms: NotRequired[List[str]]  # Distinctive terms found (e.g., ['unicorn', 'heart'])
     # Timing metrics (for progress events)
     refine_time_ms: NotRequired[int]           # Time spent refining query with LLM

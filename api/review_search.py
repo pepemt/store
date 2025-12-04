@@ -191,9 +191,10 @@ class ReviewSearchEngine:
     def search_reviews(self, query: str, top_k: int = 50) -> List[Dict[str, Any]]:
         """Devuelve reviews más similares a la necesidad del usuario."""
         query_emb = self.model.embed(query).astype("float32", copy=False)
+        query_emb = query_emb.reshape(1, -1)  # 2D array required by FAISS
         faiss.normalize_L2(query_emb)
 
-        scores, idxs = self.index.search(query_emb[None, :], k=min(top_k, len(self.embeddings)))
+        scores, idxs = self.index.search(query_emb, k=min(top_k, len(self.embeddings)))
         scores = scores.flatten()
         idxs = idxs.flatten()
 
@@ -256,6 +257,7 @@ class ReviewSearchEngine:
                     "images": _build_images(art.article_id),
                     "score": round(float(score), 3),
                     "evidence_review": review_hit.get("review", ""),
+                    "from_reviews": True,
                 })
                 if len(result) >= limit:
                     break
